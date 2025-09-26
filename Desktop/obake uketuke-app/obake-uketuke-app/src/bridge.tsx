@@ -5,6 +5,7 @@
  * - 日付: 最初の input[type=date]
  * - 送信ボタン: 「整理券を発行」または「予約する」という文言を含む button
  * また、右下に管理画面 (/admin) へ飛ぶフローティングボタンを描画。
+ * さらに、フォームUIを自動整形してTailwind CSSクラスを適用する。
  */
 import { ticketsStore } from "./store/tickets";
 
@@ -15,7 +16,7 @@ function findSubmitButtons(): HTMLButtonElement[] {
   const candidates = Array.from(document.querySelectorAll("button")) as HTMLButtonElement[];
   return candidates.filter(b=>{
     const t = (b.textContent || "").trim();
-    return /整理券を発行|予約する/.test(t);
+    return /整理券を発行|予約する|整理券を取得/.test(t);
   });
 }
 function ensureAdminFab() {
@@ -33,8 +34,58 @@ function ensureAdminFab() {
   document.body.appendChild(a);
 }
 
+function styleForm() {
+  // ボディに基本スタイルを適用
+  document.body.classList.add('font-sans','bg-surface-bg','text-surface-text');
+
+  // フォーム要素のスタイル定義
+  const inputCls = "h-10 w-full rounded-base border border-surface-muted bg-white px-3 outline-none focus:ring-2 focus:ring-brand";
+  const selectCls = inputCls;
+  const textareaCls = "w-full rounded-base border border-surface-muted bg-white p-3 outline-none focus:ring-2 focus:ring-brand";
+  const buttonPrimary = "h-10 w-full rounded-base bg-brand text-white font-medium hover:opacity-90 disabled:opacity-60";
+
+  // input要素にスタイルを適用
+  (document.querySelectorAll('input[type="text"],input[type="email"],input[type="tel"],input[type="date"]') as NodeListOf<HTMLInputElement>)
+    .forEach(el => { 
+      if (!el.className.includes("rounded-base")) {
+        el.className = `${inputCls} ${el.className}`.trim(); 
+      }
+    });
+
+  // select要素にスタイルを適用
+  (document.querySelectorAll('select') as NodeListOf<HTMLSelectElement>)
+    .forEach(el => { 
+      if (!el.className.includes("rounded-base")) {
+        el.className = `${selectCls} ${el.className}`.trim(); 
+      }
+    });
+
+  // textarea要素にスタイルを適用
+  (document.querySelectorAll('textarea') as NodeListOf<HTMLTextAreaElement>)
+    .forEach(el => { 
+      if (!el.className.includes("rounded-base")) {
+        el.className = `${textareaCls} ${el.className}`.trim(); 
+      }
+    });
+
+  // 送信ボタンにスタイルを適用
+  Array.from(document.querySelectorAll('button'))
+    .filter(b => /整理券を取得|整理券を発行|予約する/.test((b.textContent||"").trim()))
+    .forEach(b => { 
+      if (!b.className.includes("bg-brand")) {
+        b.className = `${buttonPrimary} ${b.className}`.trim(); 
+      }
+    });
+
+  // メインコンテナにレイアウトクラスを適用
+  document.querySelectorAll('main, form').forEach(c => {
+    (c as HTMLElement).classList.add('mx-auto','max-w-3xl','px-4','pb-24');
+  });
+}
+
 function wireOnce() {
   ensureAdminFab();
+  styleForm(); // スタイル適用を追加
 
   const email = qs("input[type=email]") as HTMLInputElement | null;
   const select = qs("select") as HTMLSelectElement | null;
@@ -73,3 +124,7 @@ function wireOnce() {
 const obs = new MutationObserver(()=>wireOnce());
 obs.observe(document.documentElement, { childList:true, subtree:true });
 window.addEventListener("load", wireOnce);
+
+// スタイル適用のためのMutationObserver
+const styleObs = new MutationObserver(() => styleForm());
+styleObs.observe(document.documentElement, { childList:true, subtree:true });
