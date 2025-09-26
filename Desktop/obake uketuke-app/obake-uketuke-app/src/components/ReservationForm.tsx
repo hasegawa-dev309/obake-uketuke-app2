@@ -1,92 +1,91 @@
 import React, { useState } from "react";
 import { ticketsStore } from "../store/tickets";
 
-const ReservationForm: React.FC = () => {
-  const [form, setForm] = useState({
-    email: "",
-    people: "1",
-    ageGroup: "",
-  });
+export default function ReservationForm() {
+  const [form, setForm] = useState({ email: "", people: "1", ageGroup: "" });
   const [sending, setSending] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const change = (e: React.ChangeEvent<HTMLInputElement|HTMLSelectElement>)=>{
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm(s=>({ ...s, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent)=>{
     e.preventDefault();
     if (!form.email || !form.ageGroup) return;
     setSending(true);
-    try {
-      ticketsStore.add({
-        email: form.email.trim(),
-        people: Number(form.people),
-        ageGroup: form.ageGroup as any,
-      });
-      console.log("Reservation saved:", form);
-      alert("整理券を登録しました。管理画面で確認できます。");
-      // 必要ならここでフォーム初期化
-      // setForm({ email:"", people:"1", ageGroup:"" });
-    } finally {
-      setSending(false);
-    }
+    ticketsStore.add({
+      email: form.email.trim(),
+      people: Number(form.people),
+      ageGroup: form.ageGroup as any
+    });
+    setTimeout(()=>{ setSending(false); location.assign("/reservation/complete"); }, 200);
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="max-w-md mx-auto p-4 bg-surface-card shadow-card rounded-base space-y-4"
-    >
-      <h2 className="text-xl font-bold text-center">整理券取得</h2>
+    <div className="mx-auto max-w-2xl">
+      <section className="bg-white rounded-2xl shadow-[0_20px_60px_rgba(2,6,23,0.12)] overflow-hidden">
+        {/* Header row */}
+        <div className="px-5 py-5 border-b flex items-center gap-3">
+          <span className="text-2xl">👻</span>
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold">お化け屋敷整理券フォーム</h1>
+            <div className="mt-1 text-xs text-slate-500 flex items-center gap-4">
+              <div>📅 {new Date().toLocaleDateString("ja-JP")}</div>
+              <div>🕑 {new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"})}</div>
+            </div>
+          </div>
+        </div>
 
-      <input
-        type="email"
-        name="email"
-        placeholder="メールアドレス"
-        value={form.email}
-        onChange={handleChange}
-        required
-        className="w-full h-10 px-3 border border-surface-muted rounded-base focus:ring-2 focus:ring-brand"
-      />
+        {/* Body */}
+        <form onSubmit={submit} className="p-5 space-y-4">
+          {/* email */}
+          <label className="block">
+            <span className="text-sm text-slate-600 flex items-center gap-2 mb-1">✉️ メールアドレス</span>
+            <input
+              type="email" required name="email" value={form.email} onChange={change}
+              className="w-full h-12 px-3 rounded-base border border-slate-200 bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-brand"
+              placeholder="you@example.com"
+            />
+          </label>
 
-      <select
-        name="people"
-        value={form.people}
-        onChange={handleChange}
-        className="w-full h-10 px-3 border border-surface-muted rounded-base focus:ring-2 focus:ring-brand"
-      >
-        {[1, 2, 3, 4, 5].map((n) => (
-          <option key={n} value={n}>
-            {n}人
-          </option>
-        ))}
-      </select>
+          {/* people */}
+          <label className="block">
+            <span className="text-sm text-slate-600 flex items-center gap-2 mb-1">👥 人数</span>
+            <select
+              name="people" value={form.people} onChange={change}
+              className="w-full h-12 px-3 rounded-base border border-slate-200 bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              {[1,2,3,4,5].map(n=> <option key={n} value={n}>{n}名</option>)}
+            </select>
+          </label>
 
-      <select
-        name="ageGroup"
-        value={form.ageGroup}
-        onChange={handleChange}
-        required
-        className="w-full h-10 px-3 border border-surface-muted rounded-base focus:ring-2 focus:ring-brand"
-      >
-        <option value="">年齢層を選択してください</option>
-        <option value="高校生以下">高校生以下</option>
-        <option value="大学生">大学生</option>
-        <option value="一般">一般</option>
-      </select>
+          {/* ageGroup */}
+          <label className="block">
+            <span className="text-sm text-slate-600 flex items-center gap-2 mb-1">🧑‍🎓 年齢層</span>
+            <select
+              required name="ageGroup" value={form.ageGroup} onChange={change}
+              className="w-full h-12 px-3 rounded-base border border-slate-200 bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              <option value="">選択してください</option>
+              <option value="高校生以下">高校生以下</option>
+              <option value="大学生">大学生</option>
+              <option value="一般">一般</option>
+            </select>
+          </label>
 
-      <button
-        type="submit"
-        disabled={sending}
-        className="w-full bg-brand text-white font-medium py-2 px-4 rounded-base hover:opacity-90 disabled:opacity-60"
-      >
-        整理券を取得する
-      </button>
-    </form>
+          {/* submit */}
+          <button
+            data-primary
+            disabled={sending}
+            className="w-full h-12 rounded-base text-white font-semibold shadow-card
+                       bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500
+                       hover:opacity-90 active:scale-[.99] transition"
+          >
+            👻 整理券を発行する
+          </button>
+        </form>
+      </section>
+    </div>
   );
-};
-
-export default ReservationForm;
+}
