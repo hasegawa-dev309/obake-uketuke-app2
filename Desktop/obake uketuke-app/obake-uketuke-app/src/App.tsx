@@ -8,29 +8,45 @@ import { AdminTickets } from './components/admin/AdminTickets'
 import { AdminReservationForm } from './components/admin/AdminReservationForm'
 import { UserLayout } from './components/UserLayout'
 import { AdminLayout } from './components/AdminLayout'
+import { MobileHomePage } from './components/MobileHomePage'
+import { MobileReservationForm } from './components/MobileReservationForm'
+import { MobileComplete } from './components/MobileComplete'
+import { MobileMyPage } from './components/MobileMyPage'
+import { MobileInstallPrompt } from './components/MobileInstallPrompt'
+import { useMobile } from './hooks/useMobile'
 
 function App() {
+  const isMobile = useMobile();
+
   return (
     <Router>
       <Routes>
-        {/* ホームページ */}
-        <Route path="/" element={<HomePage />} />
+        {/* ホームページ - モバイル対応 */}
+        <Route path="/" element={
+          isMobile ? <MobileHomePage /> : <HomePage />
+        } />
         
-        {/* 一般ユーザー向けルート */}
+        {/* 一般ユーザー向けルート - モバイル対応 */}
         <Route path="/reservation" element={
-          <UserLayout>
-            <ReservationForm />
-          </UserLayout>
+          isMobile ? <MobileReservationForm /> : (
+            <UserLayout>
+              <ReservationForm />
+            </UserLayout>
+          )
         } />
         <Route path="/reservation/complete" element={
-          <UserLayout>
-            <ReservationComplete />
-          </UserLayout>
+          isMobile ? <MobileComplete /> : (
+            <UserLayout>
+              <ReservationComplete />
+            </UserLayout>
+          )
         } />
         <Route path="/mypage" element={
-          <UserLayout>
-            <MyPage />
-          </UserLayout>
+          isMobile ? <MobileMyPage /> : (
+            <UserLayout>
+              <MyPage />
+            </UserLayout>
+          )
         } />
         
         {/* 管理者向けルート - 認証なしでアクセス可能 */}
@@ -72,6 +88,9 @@ function App() {
           </div>
         } />
       </Routes>
+      
+      {/* PWAインストールプロンプト */}
+      <MobileInstallPrompt />
     </Router>
   )
 }
