@@ -62,6 +62,7 @@ function styleTopLinks() {
   const baseCls = "inline-flex items-center justify-center h-10 px-4 rounded-base shadow-card";
   const solidCls = "bg-brand text-white hover:opacity-90";
   
+  // aタグとbuttonタグの両方を対象にする
   Array.from(document.querySelectorAll('a, button'))
     .filter(el => {
       const text = (el.textContent || "").trim();
