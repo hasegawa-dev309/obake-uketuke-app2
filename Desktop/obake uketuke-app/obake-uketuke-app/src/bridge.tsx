@@ -58,12 +58,30 @@ function styleForm() {
   });
 }
 
+function styleTopLinks() {
+  const baseCls = "inline-flex items-center justify-center h-10 px-4 rounded-base shadow-card";
+  const solidCls = "bg-brand text-white hover:opacity-90";
+  
+  Array.from(document.querySelectorAll('a, button'))
+    .filter(el => {
+      const text = (el.textContent || "").trim();
+      return /整理券を取得|マイページ|管理画面/.test(text);
+    })
+    .forEach(el => {
+      if (!el.className.includes("rounded-base")) {
+        el.className = `${baseCls} ${solidCls} ${el.className}`.trim();
+        el.setAttribute("data-primary", "");
+      }
+    });
+}
+
 function debounce<F extends (...a:any)=>void>(fn:F, ms=80){
   let t:number|undefined; return (...a:Parameters<F>)=>{
     clearTimeout(t); t = window.setTimeout(()=>fn(...a), ms);
   };
 }
 const runStyle = debounce(styleForm, 80);
+const runStyleTopLinks = debounce(styleTopLinks, 80);
 
 function readFieldsFromButton(btn: HTMLButtonElement) {
   const scope: ParentNode = (btn.closest("form") || document);
@@ -85,6 +103,7 @@ function readFieldsFromButton(btn: HTMLButtonElement) {
 function wireOnce(root: ParentNode = document) {
   ensureAdminFab();
   runStyle();
+  runStyleTopLinks();
 
   const buttons = findSubmitButtons(root);
   if (buttons.length === 0) return;
