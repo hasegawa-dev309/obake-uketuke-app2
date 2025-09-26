@@ -1,3 +1,5 @@
+console.log("[bridge] loaded @", location.pathname, "at", new Date().toISOString());
+
 import { ticketsStore } from "./store/tickets";
 
 function qs<T extends Element = Element>(sel: string, root: ParentNode = document): T | null {
@@ -64,10 +66,15 @@ function readFieldsFromButton(btn: HTMLButtonElement) {
   const selectEl = qs<HTMLSelectElement>("select", scope);
   const numberEl = qs<HTMLInputElement>('input[type="number"]', scope);
   const people = selectEl ? Number(selectEl.value) : (numberEl ? Number(numberEl.value) : 1);
-  const dateEl = qs<HTMLInputElement>('input[type="date"]', scope) 
-              || qs<HTMLInputElement>('input[type="datetime-local"]', scope);
-  const day = dateEl?.value ? dateEl.value.slice(0,10) : new Date().toISOString().slice(0,10);
-  return { email, people, day };
+  
+  // ageGroupを取得（select要素から）
+  const ageGroupSelect = Array.from(scope.querySelectorAll('select')).find(s => {
+    const options = Array.from(s.options);
+    return options.some(opt => opt.value === "高校生以下" || opt.value === "大学生" || opt.value === "一般");
+  }) as HTMLSelectElement | undefined;
+  const ageGroup = ageGroupSelect?.value as "高校生以下" | "大学生" | "一般" | undefined;
+  
+  return { email, people, ageGroup };
 }
 
 function wireOnce(root: ParentNode = document) {
@@ -83,12 +90,12 @@ function wireOnce(root: ParentNode = document) {
 
     btn.addEventListener("click", () => {
       try {
-        const { email, people, day } = readFieldsFromButton(btn);
-        if (!email) return;
-        ticketsStore.add({ email, people, day });
+        const { email, people, ageGroup } = readFieldsFromButton(btn);
+        if (!email || !ageGroup) return;
+        ticketsStore.add({ email, people, ageGroup });
 
         const toast = document.createElement("div");
-        toast.textContent = `発行: ${email} / ${people}人 / ${day}`;
+        toast.textContent = `発行: ${email} / ${people}人 / ${ageGroup}`;
         Object.assign(toast.style, {
           position:"fixed", left:"50%", transform:"translateX(-50%)",
           bottom:"80px", background:"#111827", color:"#fff",
@@ -96,26 +103,14 @@ function wireOnce(root: ParentNode = document) {
         });
         document.body.appendChild(toast);
         setTimeout(()=>toast.remove(), 2000);
-      } catch {}
+      } catch (e) {
+        console.error("[bridge] error:", e);
+      }
     });
   });
 }
 
-const observer = new MutationObserver((muts) => {
-  muts.forEach(m => {
-    m.addedNodes.forEach(node => {
-      if (node.nodeType === 1) wireOnce(node as Element);
-    });
-  });
-  runStyle();
-});
-
-window.addEventListener("load", () => {
-  wireOnce(document);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-});
-
-if (location.pathname.startsWith("/admin")) {
-  const fab = document.getElementById("__admin_fab");
-  if (fab) fab.remove();
-}
+// 初期化
+const obs = new MutationObserver(() => wireOnce());
+obs.observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener("load", () => wireOnce());

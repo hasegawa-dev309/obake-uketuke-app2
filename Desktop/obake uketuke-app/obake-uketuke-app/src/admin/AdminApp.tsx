@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ticketsStore, segment, Ticket } from "../store/tickets";
+import "../index.css"; // 念のため（admin/main.tsx で読み込んでいれば重複OK）
 
 function useTickets() {
   const subscribe = (cb:()=>void)=> ticketsStore.onChange(cb);
@@ -21,7 +22,8 @@ function Column({ title, items, onStatus }:{
           <li key={t.id} className="rounded-base border border-surface-muted p-3 text-sm flex items-center justify-between">
             <div>
               <div className="font-medium tabular-nums">ID: {t.id.slice(0,8)}…</div>
-              <div className="text-slate-600">{t.email} / {t.people}名 / {t.day}</div>
+              <div className="text-slate-700">{t.email}</div>
+              <div className="text-slate-600">{t.people}名 / {t.ageGroup}</div>
             </div>
             <div className="flex gap-2">
               <button className="h-8 px-3 rounded-base bg-brand text-white" onClick={()=>onStatus(t.id,"arrived")}>来場</button>
@@ -44,7 +46,7 @@ export function AdminApp(){
       <header className="border-b">
         <div className="mx-auto max-w-5xl px-4 py-5 flex items-center justify-between">
           <h1 className="text-xl font-semibold">管理画面</h1>
-          <a href="/" className="text-sm text-brand">受付へ戻る</a>
+          <a href="/reservation.html" className="text-sm text-brand">受付へ</a>
         </div>
       </header>
 

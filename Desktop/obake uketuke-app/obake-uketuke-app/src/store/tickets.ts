@@ -3,13 +3,14 @@
  * - localStorage 保存 (key: 'tickets:v1')
  * - BroadcastChannel('tickets') で他タブ同期
  */
+
 export type Ticket = {
   id: string;
   email: string;
   people: number;
-  day: string;        // YYYY-MM-DD
+  ageGroup: "高校生以下" | "大学生" | "一般";
   status: "queued" | "arrived" | "no-show";
-  createdAt: number;  // epoch ms
+  createdAt: number; // epoch ms
 };
 
 const LS_KEY = "tickets:v1";
@@ -26,11 +27,13 @@ function save(data: Ticket[]) {
 
 export const ticketsStore = {
   getAll(): Ticket[] { return load().sort((a,b)=>a.createdAt-b.createdAt); },
-  add(t: Omit<Ticket, "id"|"status"|"createdAt">): Ticket {
+  add(t: { email: string; people: number; ageGroup: Ticket["ageGroup"] }): Ticket {
     const all = load();
     const newT: Ticket = {
-      ...t,
       id: crypto.randomUUID(),
+      email: t.email,
+      people: t.people,
+      ageGroup: t.ageGroup,
       status: "queued",
       createdAt: Date.now(),
     };

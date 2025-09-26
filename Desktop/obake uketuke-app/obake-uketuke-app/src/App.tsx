@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { HomePage } from './components/HomePage'
-import { ReservationForm } from './components/ReservationForm'
+import ReservationForm from './components/ReservationForm'
 import { ReservationComplete } from './components/ReservationComplete'
 import { MyPage } from './components/MyPage'
 import { AdminCall } from './components/admin/AdminCall'
