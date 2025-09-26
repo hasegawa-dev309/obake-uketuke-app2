@@ -46,7 +46,12 @@ function styleForm() {
 
   Array.from(document.querySelectorAll('button'))
     .filter(b => /整理券を取得|整理券を発行|予約する/.test((b.textContent||"").trim()))
-    .forEach(b => { if (!b.className.includes("bg-brand")) b.className = `${buttonPrimary} ${b.className}`.trim(); });
+    .forEach(b => { 
+      if (!b.className.includes("bg-brand")) {
+        b.className = `${buttonPrimary} ${b.className}`.trim();
+        b.setAttribute("data-primary", "");
+      }
+    });
 
   document.querySelectorAll('main, form').forEach(c => {
     (c as HTMLElement).classList.add('mx-auto','max-w-3xl','px-4','pb-24');
