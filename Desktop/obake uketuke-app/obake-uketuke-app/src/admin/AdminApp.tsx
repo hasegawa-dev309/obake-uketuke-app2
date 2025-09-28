@@ -1,12 +1,37 @@
-import { useMemo, useState } from "react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ticketsStore, Ticket } from "../store/tickets";
 import "../index.css";
 
-function useTickets(){
-  const subscribe = (cb:()=>void)=> ticketsStore.onChange(cb);
-  const get = ()=> ticketsStore.getAll();
-  return useSyncExternalStore(subscribe, get, get);
+/** 変更がある時だけ state を更新（参照が無駄に変わらないように） */
+function useTicketsStable() {
+  const [data, setData] = useState<Ticket[]>(() => ticketsStore.getAll?.() ?? []);
+  const cacheRef = useRef<string>("");
+
+  useEffect(() => {
+    // 初回キャッシュ
+    cacheRef.current = JSON.stringify(data.map(t => [t.id, t.status, t.people, t.ageGroup, t.createdAt]));
+
+    const unsub = ticketsStore.onChange?.(() => {
+      const next = ticketsStore.getAll?.() ?? [];
+      const sig = JSON.stringify(next.map(t => [t.id, t.status, t.people, t.ageGroup, t.createdAt]));
+      if (sig !== cacheRef.current) {
+        cacheRef.current = sig;
+        setData(next);
+      }
+    });
+
+    // マウント時にも最新を1回取り込む（onChangeが来ない構成のための保険）
+    const next = ticketsStore.getAll?.() ?? [];
+    const sig = JSON.stringify(next.map(t => [t.id, t.status, t.people, t.ageGroup, t.createdAt]));
+    if (sig !== cacheRef.current) {
+      cacheRef.current = sig;
+      setData(next);
+    }
+
+    return () => { if (typeof unsub === "function") unsub(); };
+  }, []);
+
+  return data;
 }
 
 function TopBar(){
@@ -49,7 +74,7 @@ function Badge({status}:{status:Ticket["status"]}){
 }
 
 export function AdminApp(){
-  const all = useTickets();
+  const all = useTicketsStable();
 
   // UI state
   const [q, setQ] = useState("");
@@ -66,7 +91,7 @@ export function AdminApp(){
     });
   },[all,q,age,st]);
 
-  const onStatus = (id:string, s:Ticket["status"])=> ticketsStore.update(id,{status:s});
+  const onStatus = (id:string, s:Ticket["status"])=> ticketsStore.update?.(id,{status:s});
 
   return (
     <div className="min-h-dvh flex" style={{ background: "linear-gradient(180deg,#fff7ed 0%,#fff1e6 100%)" }}>
@@ -75,7 +100,7 @@ export function AdminApp(){
         <TopBar />
 
         <div className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-          {/* ツールバー（スマレジ風） */}
+          {/* ツールバー */}
           <div className="bg-white rounded-base border p-3 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
             <div className="flex gap-2">
               <select className="h-9 px-2 rounded-base border" value={age} onChange={e=>setAge(e.target.value)}>
@@ -98,7 +123,7 @@ export function AdminApp(){
             />
           </div>
 
-          {/* テーブル（スマレジ風） */}
+          {/* テーブル */}
           <div className="overflow-x-auto bg-white rounded-2xl shadow-[0_20px_60px_rgba(2,6,23,0.08)]">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50">
@@ -143,7 +168,6 @@ export function AdminApp(){
             </table>
           </div>
 
-          {/* 受付へ戻る */}
           <div className="text-right">
             <a href="/reservation.html" className="inline-flex items-center h-9 px-3 rounded-base bg-slate-900 text-white hover:opacity-90">
               受付へ戻る
