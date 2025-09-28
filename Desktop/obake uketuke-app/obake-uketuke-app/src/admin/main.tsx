@@ -1,6 +1,6 @@
+import "../index.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "../index.css";
 import { AdminApp } from "./AdminApp";
 
 const root = document.getElementById("admin-root")!;
