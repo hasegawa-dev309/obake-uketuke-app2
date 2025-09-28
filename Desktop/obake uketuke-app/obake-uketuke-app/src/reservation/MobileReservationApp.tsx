@@ -14,8 +14,7 @@ export default function MobileReservationApp() {
 
   const submit = () => {
     if (disabled) return;
-    const day = new Date().toISOString().slice(0, 10);
-    ticketsStore.add?.({ email, people, ageGroup: age, day });
+    ticketsStore.add?.({ email, people, ageGroup: age });
     // 完了画面へ
     location.href = "/reservation/complete";
   };

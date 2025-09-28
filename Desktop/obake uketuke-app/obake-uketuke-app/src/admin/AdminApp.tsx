@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ticketsStore, Ticket } from "../store/tickets";
 import Sidebar from "./ui/Sidebar";
 import Topbar from "./ui/Topbar";
@@ -41,7 +41,7 @@ export function AdminApp(){
   // 集計
   const today = useMemo(()=> {
     const d = new Date(); const k = d.toISOString().slice(0,10);
-    return all.filter(t => (t.createdAt || "").slice(0,10) === k);
+    return all.filter(t => new Date(t.createdAt).toISOString().slice(0,10) === k);
   }, [all]);
   const stats = {
     total: today.length,
