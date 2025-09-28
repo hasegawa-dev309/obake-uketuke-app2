@@ -13,29 +13,29 @@ export default function Sidebar({ activeMenu = "tickets" }: SidebarProps) {
   ];
 
   return (
-    <div className="fixed inset-y-0 left-0 w-[240px] bg-white border-r border-slate-200 z-30 overflow-y-auto">
+    <div className="w-[240px] bg-slate-800 text-white flex flex-col h-screen">
       {/* ロゴ */}
-      <div className="p-6 border-b border-slate-200">
+      <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 grid place-items-center rounded-full bg-violet-50 text-violet-600">
+          <div className="h-8 w-8 grid place-items-center rounded-full bg-violet-500 text-white">
             <span className="text-lg">👻</span>
           </div>
-          <span className="font-semibold text-slate-800">管理画面</span>
+          <span className="font-semibold text-white">管理画面</span>
         </div>
       </div>
 
       {/* メニュー */}
-      <nav className="p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => {
           const isActive = activeMenu === item.id;
           return (
             <a
               key={item.id}
               href={`#${item.id}`}
-              className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors ${
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
                 isActive
-                  ? "bg-indigo-50 text-indigo-700 border-l-4 border-indigo-500"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-slate-600 text-white"
+                  : "text-slate-300 hover:bg-slate-700 hover:text-white"
               }`}
             >
               <item.icon className="h-5 w-5" />
@@ -46,12 +46,12 @@ export default function Sidebar({ activeMenu = "tickets" }: SidebarProps) {
       </nav>
 
       {/* 外部リンク */}
-      <div className="absolute bottom-4 left-4 right-4">
+      <div className="p-4 border-t border-slate-700">
         <a
           href="/reservation.html"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
+          className="flex items-center gap-3 px-3 py-3 text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg transition-colors"
         >
           <ExternalLink className="h-5 w-5" />
           <span className="text-sm font-medium">一般予約フォーム</span>

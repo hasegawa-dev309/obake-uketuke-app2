@@ -65,17 +65,21 @@ export default function TicketsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f8ff,#ffffff)]">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f8ff,#ffffff)] flex">
+      {/* サイドバー */}
       <Sidebar activeMenu="tickets" />
       
-      <div className="pl-[240px]">
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col">
+        {/* ヘッダー */}
         <Topbar 
           title="整理券管理" 
           onSearch={setSearchQuery}
           onExport={handleExport}
         />
         
-        <main className="pt-16">
+        {/* ページコンテンツ */}
+        <main className="flex-1 overflow-auto">
           <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-6">
             {/* 統計カード */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
