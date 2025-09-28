@@ -17,7 +17,7 @@ function ensureAdminFab() {
   if (document.getElementById("__admin_fab")) return;
   const a = document.createElement("a");
   a.id = "__admin_fab";
-  a.href = "/admin";
+  a.href = "/admin.html";
   a.textContent = "管理画面へ";
   Object.assign(a.style, {
     position:"fixed", right:"16px", bottom:"16px", zIndex:"9999",
