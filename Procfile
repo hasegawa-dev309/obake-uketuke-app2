@@ -1,0 +1,1 @@
+web: node obake-uketuke-app/dist/main.js
