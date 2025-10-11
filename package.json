@@ -9,5 +9,8 @@
     "build:server": "npm --prefix obake-uketuke-app ci && npm --prefix obake-uketuke-app run build",
     "start": "node obake-uketuke-app/dist/main.js",
     "heroku-postbuild": "npm run build"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
   }
 }

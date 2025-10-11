@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
+import { testConnection } from './db';
+import reservationsRouter from './routes/reservations';
 
 // 環境変数を読み込み
 dotenv.config();
@@ -22,61 +24,60 @@ app.use(express.urlencoded({ extended: true }));
 // 静的ファイル配信（フロントエンド）
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// API ルート
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, timestamp: new Date().toISOString() });
+// ヘルスチェックAPI
+app.get('/api/health', async (req, res) => {
+  const dbStatus = await testConnection();
+  res.json({ 
+    ok: true, 
+    timestamp: new Date().toISOString(),
+    database: dbStatus ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // 整理券関連のAPI
-app.get('/api/reservations', (req, res) => {
-  // モックデータまたはDBからの取得
-  res.json([]);
-});
+app.use('/api/reservations', reservationsRouter);
 
-app.post('/api/reservations', (req, res) => {
-  // 整理券の作成
-  const { email, count, age } = req.body;
-  
-  // 基本的なバリデーション
-  if (!email || !count || !age) {
-    return res.status(400).json({ error: 'Missing required fields' });
+// 管理画面用のAPI（レガシーサポート）
+app.get('/api/admin/tickets', async (req, res) => {
+  // 既存のフロントエンドとの互換性のため、reservationsにリダイレクト
+  try {
+    const response = await fetch(`http://localhost:${port}/api/reservations`);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("API Error:", err);
+    res.status(500).json({ error: "API error" });
   }
-  
-  // レスポンス（実際の実装ではDBに保存）
-  const reservation = {
-    id: Date.now().toString(),
-    email,
-    count,
-    age,
-    status: '未呼出',
-    createdAt: new Date().toISOString(),
-    ticketNo: Date.now().toString()
-  };
-  
-  res.json(reservation);
 });
 
-// 管理画面用のAPI
-app.get('/api/admin/tickets', (req, res) => {
-  // モックデータ
-  res.json([]);
-});
-
-app.put('/api/admin/tickets/:id/status', (req, res) => {
+app.put('/api/admin/tickets/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   
-  // ステータス更新のロジック
-  res.json({ id, status, updated: true });
+  try {
+    const response = await fetch(`http://localhost:${port}/api/reservations/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error("API Error:", err);
+    res.status(500).json({ error: "API error" });
+  }
 });
 
-// 呼び出し管理用のAPI
+// 呼び出し管理用のAPI（LocalStorage併用）
 app.get('/api/admin/call/current', (req, res) => {
+  // フロントエンドのLocalStorageで管理されているため、ダミーレスポンス
   res.json({ current: 1 });
 });
 
 app.put('/api/admin/call/current', (req, res) => {
   const { current } = req.body;
+  // フロントエンドのLocalStorageで管理されているため、ダミーレスポンス
   res.json({ current });
 });
 
@@ -84,14 +85,25 @@ app.put('/api/admin/call/current', (req, res) => {
 app.get('*', (req, res) => {
   // APIルート以外はindex.htmlを返す
   if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+    // HTMLファイルへのリクエストの場合、該当するHTMLファイルを返す
+    if (req.path.endsWith('.html')) {
+      res.sendFile(path.join(__dirname, '..', 'public', req.path));
+    } else {
+      res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+    }
   }
 });
 
 // サーバー起動
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, '0.0.0.0', async () => {
   console.log(`Server running on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // データベース接続テスト
+  const dbConnected = await testConnection();
+  if (!dbConnected && process.env.DATABASE_URL) {
+    console.warn('⚠️  Database connection failed. Check DATABASE_URL.');
+  }
 });
 
 export default app;
