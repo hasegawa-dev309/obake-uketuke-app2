@@ -11,7 +11,11 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     hmr: { protocol: "ws", host: "localhost", clientPort: 5174 },
     proxy: {
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
+      "/api": { 
+        target: "https://obake-uketuke-app-ae91e2b5463a.herokuapp.com", 
+        changeOrigin: true,
+        secure: true,
+      },
     },
   },
 

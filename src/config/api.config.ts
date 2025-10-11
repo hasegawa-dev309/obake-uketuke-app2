@@ -1,7 +1,7 @@
 // API設定の統一管理
 export const API_CONFIG = {
-  // 本番環境では VITE_API_BASE_URL、開発環境では VITE_API_BASE_URL_DEV を使用
-  baseURL: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL_DEV || 'http://localhost:3001',
+  // Heroku本番APIを使用（開発環境でもHeroku APIに接続）
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api',
   
   // API エンドポイント
   endpoints: {

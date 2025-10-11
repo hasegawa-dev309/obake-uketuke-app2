@@ -15,7 +15,7 @@ export function useAdminReservations({
   const [data, setData] = useState<AdminReservationsResponse['items']>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+  const API = import.meta.env.VITE_API_URL || 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api'
 
   const fetchOnce = useCallback(async () => {
     if (!eventDate) return
