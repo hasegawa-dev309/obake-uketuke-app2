@@ -15,7 +15,7 @@ router.get("/", async (_req, res) => {
         age,
         status,
         created_at,
-        updated_at
+        called_at
       FROM reservations 
       ORDER BY created_at DESC
     `);
@@ -37,10 +37,10 @@ router.post("/", async (req, res) => {
   
   try {
     const result = await pool.query(
-      `INSERT INTO reservations (ticket_no, email, count, age, status, created_at, updated_at)
+      `INSERT INTO reservations (ticket_no, email, count, age, status, created_at)
        VALUES (
          (SELECT COALESCE(MAX(ticket_no), 0) + 1 FROM reservations),
-         $1, $2, $3, '未呼出', NOW(), NOW()
+         $1, $2, $3, '未呼出', NOW()
        )
        RETURNING *`,
       [email, count, age]
@@ -64,7 +64,7 @@ router.put("/:id/status", async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE reservations 
-       SET status = $1, updated_at = NOW() 
+       SET status = $1, called_at = NOW() 
        WHERE id = $2 
        RETURNING *`,
       [status, id]
