@@ -2,7 +2,60 @@
 
 サイドバー付き管理UIで整理券を簡単に管理できるWebアプリケーションです。
 
-## 🚀 Herokuデプロイ方法
+## 🚀 デプロイ方法
+
+### Vercelデプロイ（フロントエンド）+ Heroku（バックエンドAPI）
+
+このプロジェクトは、フロントエンドをVercel、バックエンドAPIをHerokuで動作させる構成です。
+
+#### 1. GitHubリポジトリを作成
+
+1. [GitHub](https://github.com)にアクセス
+2. **New repository**をクリック
+3. Repository nameを`obake-uketuke-app`に設定
+4. Public/Privateを選択
+5. **Create repository**をクリック
+
+#### 2. GitHubにプッシュ
+
+```bash
+# リポジトリのルートで実行
+cd "/path/to/obake-uketuke-app"
+
+# GitHubリモートを登録
+git remote add origin https://github.com/<YOUR-USERNAME>/obake-uketuke-app.git
+
+# メインブランチとしてプッシュ
+git branch -M main
+git push -u origin main
+```
+
+#### 3. Vercelにデプロイ
+
+1. [Vercel](https://vercel.com)にログイン（GitHub連携推奨）
+2. 右上の**Add New** → **Project**
+3. **Import Git Repository**で`obake-uketuke-app`を選択
+4. 設定画面で以下を入力：
+
+**General**
+- Framework Preset: `Vite`
+- Root Directory: `frontend`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+**Environment Variables**
+- Key: `VITE_API_URL`
+- Value: `https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api`
+
+5. **Deploy**をクリック
+
+#### 4. デプロイ完了
+
+VercelのビルドがT完了すると、URLが発行されます（例：`https://obake-uketuke-app.vercel.app/`）
+
+---
+
+## 🚀 Herokuデプロイ方法（バックエンドAPI）
 
 ### 1. 必要な準備
 

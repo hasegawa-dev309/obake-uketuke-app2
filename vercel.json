@@ -1,8 +1,12 @@
 {
   "version": 2,
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
   "framework": "vite",
-  "buildCommand": "vite build",
-  "outputDirectory": "dist",
-  "cleanUrls": true,
-  "trailingSlash": false
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/:path*"
+    }
+  ]
 }
