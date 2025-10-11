@@ -5,6 +5,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/reservation.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/:path*"
     }
