@@ -1,0 +1,66 @@
+import { NavLink, Outlet } from "react-router-dom";
+
+export default function AdminLayout() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      <aside className="w-64 border-r bg-white">
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">👻</span>
+            <div>
+              <div className="font-bold text-lg">お化け屋敷</div>
+              <div className="text-xs text-slate-500">整理券システム</div>
+            </div>
+          </div>
+        </div>
+        
+        <nav className="p-4 space-y-2">
+          <NavLink 
+            to="/"
+            end
+            className={({isActive}) => `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
+            }`}
+          >
+            <span className="text-lg">🎫</span>
+            <span>整理券管理</span>
+          </NavLink>
+          
+          <NavLink 
+            to="/call"
+            className={({isActive}) => `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
+            }`}
+          >
+            <span className="text-lg">👤</span>
+            <span>呼び出し管理</span>
+          </NavLink>
+          
+          <NavLink 
+            to="/issue"
+            className={({isActive}) => `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
+            }`}
+          >
+            <span className="text-lg">➕</span>
+            <span>整理券発行</span>
+          </NavLink>
+          
+          <NavLink 
+            to="/settings"
+            className={({isActive}) => `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
+            }`}
+          >
+            <span className="text-lg">⚙️</span>
+            <span>設定</span>
+          </NavLink>
+        </nav>
+      </aside>
+      
+      <main className="flex-1 p-6">
+        <Outlet/>
+      </main>
+    </div>
+  );
+}

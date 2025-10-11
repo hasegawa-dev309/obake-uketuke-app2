@@ -29,6 +29,19 @@ export default function ReservationApp() {
     return () => clearInterval(interval);
   }, []);
 
+  // 型安全なハンドラ
+  const onEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  };
+
+  const onCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setCount(Number(e.target.value));
+  };
+
+  const onAgeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAge(e.target.value as Age);
+  };
+
   // 日付が変わったら整理券番号をリセット
   function checkAndResetIfNeeded() {
     const today = new Date().toISOString().split('T')[0];
@@ -183,7 +196,7 @@ export default function ReservationApp() {
               required 
               type="email" 
               value={email} 
-              onChange={e=>setEmail(e.target.value)}
+              onChange={onEmailChange}
               placeholder="example@email.com"
               className="mt-1 w-full rounded-lg border px-3 h-11" 
             />
@@ -194,7 +207,7 @@ export default function ReservationApp() {
             <select 
               className="mt-1 w-full rounded-lg border h-11 px-3"
               value={count} 
-              onChange={e=>setCount(Number(e.target.value))}
+              onChange={onCountChange}
             >
               {[1,2,3,4,5,6,7,8].map(n=> <option key={n} value={n}>{n}名</option>)}
             </select>
@@ -205,7 +218,7 @@ export default function ReservationApp() {
             <select 
               className="mt-1 w-full rounded-lg border h-11 px-3"
               value={age} 
-              onChange={e=>setAge(e.target.value as Age)}
+              onChange={onAgeChange}
             >
               {(["一般","大学生","高校生以下"] as Age[]).map(a=> <option key={a} value={a}>{a}</option>)}
             </select>
