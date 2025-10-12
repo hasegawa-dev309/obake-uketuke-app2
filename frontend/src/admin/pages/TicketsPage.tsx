@@ -17,7 +17,6 @@ export default function TicketsPage(){
   const [searchTerm, setSearchTerm] = useState("");
   const [ageFilter, setAgeFilter] = useState("すべて");
   const [statusFilter, setStatusFilter] = useState("すべて");
-  const [channelFilter, setChannelFilter] = useState("すべて");
 
   // APIから整理券データを取得（認証付き）
   const loadTickets = async () => {
@@ -55,14 +54,9 @@ export default function TicketsPage(){
                          ticket.count.toString().includes(searchTerm);
     const matchesAge = ageFilter === "すべて" || ticket.age === ageFilter;
     const matchesStatus = statusFilter === "すべて" || ticket.status === statusFilter;
-    const matchesChannel = channelFilter === "すべて" || (ticket as any).channel === channelFilter;
     
-    return matchesSearch && matchesAge && matchesStatus && matchesChannel;
+    return matchesSearch && matchesAge && matchesStatus;
   });
-
-  const getChannelCount = (channel: string) => {
-    return tickets.filter(t => (t as any).channel === channel).length;
-  };
 
   const getStatusCount = (status: string) => {
     return tickets.filter(t => t.status === status).length;
@@ -104,7 +98,7 @@ export default function TicketsPage(){
         ticket.count.toString(),
         ticket.age,
         ticket.status,
-        ticket.createdAt
+        new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
       ])
     ];
 
@@ -124,9 +118,9 @@ export default function TicketsPage(){
     const hourStats: { [key: string]: number } = {};
     tickets.forEach(ticket => {
       try {
-        // "2024/01/01 14:30" の形式から時間を抽出
-        const timeStr = ticket.createdAt.toString();
-        const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+        // 日本時間に変換してから時間を抽出
+        const jstDate = new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+        const match = jstDate.match(/(\d{1,2}):(\d{2})/);
         if (match) {
           const hour = parseInt(match[1]);
           const hourKey = `${hour}:00-${hour}:59`;
@@ -231,40 +225,10 @@ export default function TicketsPage(){
         </div>
       </div>
 
-      {/* 統計カード - チャネル別 */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-          <div className="text-blue-700 font-medium text-sm mb-2">📱 モバイル</div>
-          <div className="text-2xl font-bold text-blue-700">{getChannelCount("mobile")}</div>
-        </div>
-        <div className="bg-green-50 rounded-xl border border-green-200 p-4">
-          <div className="text-green-700 font-medium text-sm mb-2">💻 PC</div>
-          <div className="text-2xl font-bold text-green-700">{getChannelCount("web")}</div>
-        </div>
-        <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
-          <div className="text-purple-700 font-medium text-sm mb-2">📲 タブレット</div>
-          <div className="text-2xl font-bold text-purple-700">{getChannelCount("tablet")}</div>
-        </div>
-        <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
-          <div className="text-orange-700 font-medium text-sm mb-2">👤 管理画面</div>
-          <div className="text-2xl font-bold text-orange-700">{getChannelCount("admin")}</div>
-        </div>
-      </div>
 
       {/* フィルター */}
       <div className="bg-white rounded-xl border p-4">
         <div className="flex items-center gap-4 flex-wrap">
-          <select 
-            className="px-3 py-2 border rounded-lg"
-            value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-          >
-            <option value="すべて">デバイス: すべて</option>
-            <option value="mobile">📱 モバイル</option>
-            <option value="tablet">📲 タブレット</option>
-            <option value="web">💻 PC</option>
-            <option value="admin">👤 管理画面</option>
-          </select>
           <select 
             className="px-3 py-2 border rounded-lg"
             value={ageFilter}
@@ -336,7 +300,9 @@ export default function TicketsPage(){
                     {ticket.status}
                   </span>
                 </td>
-                <td className="px-3 py-2">{ticket.createdAt}</td>
+                <td className="px-3 py-2">
+                  {new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2 flex-wrap">
                     <button 
