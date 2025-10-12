@@ -305,32 +305,37 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
 
 // すべてのデータをクリア（管理者のみ）
 router.delete("/all", requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
   try {
     console.log("🗑️ [DELETE /all] すべてのデータ削除開始");
     
-    if (!pool) {
-      console.error("❌ [DELETE /all] poolが未設定");
-      return res.status(500).json({ ok: false, error: "db_not_configured" });
-    }
+    await client.query('BEGIN');
+    
+    // 削除前の件数を取得
+    const countResult = await client.query('SELECT COUNT(*) as count FROM reservations');
+    const totalCount = parseInt(countResult.rows[0].count);
     
     // すべての予約データを削除
     console.log("🗑️ [DELETE /all] クエリ実行開始");
-    const result = await pool.query("DELETE FROM reservations");
-    console.log("🗑️ [DELETE /all] クエリ実行完了", result);
-    const deletedCount = result.rowCount || 0;
+    const result = await client.query("DELETE FROM reservations");
+    console.log("🗑️ [DELETE /all] クエリ実行完了");
+    
+    await client.query('COMMIT');
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /all] ${deletedCount}件のデータを削除、カウンターをリセット`);
+    console.log(`✅ [DELETE /all] ${totalCount}件のデータを削除、カウンターをリセット`);
     
     return res.json({ 
       ok: true, 
-      message: `${deletedCount}件のデータを削除しました`,
-      data: { deletedCount, currentNumber: 1 } 
+      message: `${totalCount}件のデータを削除しました`,
+      data: { deletedCount: totalCount, currentNumber: 1 } 
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error("❌ [DELETE /all] DBエラー:", err);
     const errorMessage = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack : "";
@@ -341,6 +346,8 @@ router.delete("/all", requireAdmin, async (req, res) => {
       error: "db_error", 
       message: errorMessage 
     });
+  } finally {
+    client.release();
   }
 });
 
