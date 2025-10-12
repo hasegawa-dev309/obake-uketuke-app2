@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
-import { API_CONFIG } from "../../config/api.config";
+import { authenticatedFetch } from "../../lib/api";
 
 type Ticket = { 
   id: string; 
@@ -17,15 +17,11 @@ export default function CallPage(){
   const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
-  // APIから現在の番号とシステム状態を取得
+  // APIから現在の番号とシステム状態を取得（認証付き）
   useEffect(() => {
     const fetchCurrentNumber = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
-          method: 'GET',
-          headers: API_CONFIG.headers,
-          mode: 'cors'
-        });
+        const response = await authenticatedFetch('/reservations/current-number');
         
         if (response.ok) {
           const data = await response.json();
@@ -42,14 +38,12 @@ export default function CallPage(){
     return () => clearInterval(interval);
   }, []);
 
-  // currentまたはpausedが変更されたらAPIに保存
+  // currentまたはpausedが変更されたらAPIに保存（認証付き）
   useEffect(() => {
     const saveCurrentNumber = async () => {
       try {
-        await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
+        await authenticatedFetch('/reservations/current-number', {
           method: 'PUT',
-          headers: API_CONFIG.headers,
-          mode: 'cors',
           body: JSON.stringify({ currentNumber: current, systemPaused: paused })
         });
       } catch (err) {
@@ -60,15 +54,11 @@ export default function CallPage(){
     saveCurrentNumber();
   }, [current, paused]);
 
-  // 整理券データをAPIから取得
+  // 整理券データをAPIから取得（認証付き）
   useEffect(() => {
     const fetchTickets = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
-          method: 'GET',
-          headers: API_CONFIG.headers,
-          mode: 'cors'
-        });
+        const response = await authenticatedFetch('/reservations');
         
         if (response.ok) {
           const data = await response.json();

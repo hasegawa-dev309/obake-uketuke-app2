@@ -18,12 +18,24 @@ export function IssuePage() {
     setError(null);
     
     try {
-      // APIに送信
+      // 管理画面からの発行はchannelを'admin'とする
+      const channel = 'admin';
+      
+      // APIに送信（認証トークン付き）
+      const token = localStorage.getItem('admin_token');
       const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
         method: 'POST',
-        headers: API_CONFIG.headers,
+        headers: {
+          ...API_CONFIG.headers,
+          'Authorization': `Bearer ${token}`
+        },
         mode: 'cors',
-        body: JSON.stringify({ email, count, age })
+        body: JSON.stringify({ 
+          email, 
+          count, 
+          age,
+          channel
+        })
       });
       
       if (!response.ok) {

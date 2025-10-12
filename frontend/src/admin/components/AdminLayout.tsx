@@ -1,20 +1,16 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { Ghost, Ticket, UserList, PlusCircle, Gear, Hash } from "phosphor-react";
 import { useEffect, useState } from "react";
-import { API_CONFIG } from "../../config/api.config";
+import { authenticatedFetch } from "../../lib/api";
 
 export default function AdminLayout() {
   const [currentTicket, setCurrentTicket] = useState<number>(1);
 
   useEffect(() => {
-    // APIから現在の呼び出し番号を取得
+    // APIから現在の呼び出し番号を取得（認証付き）
     const updateCurrentTicket = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
-          method: 'GET',
-          headers: API_CONFIG.headers,
-          mode: 'cors'
-        });
+        const response = await authenticatedFetch('/reservations/current-number');
         
         if (response.ok) {
           const data = await response.json();

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
-import { API_CONFIG } from "../../config/api.config";
+import { authenticatedFetch } from "../../lib/api";
 
 type Ticket = { 
   id: string; 
@@ -17,15 +17,12 @@ export default function TicketsPage(){
   const [searchTerm, setSearchTerm] = useState("");
   const [ageFilter, setAgeFilter] = useState("すべて");
   const [statusFilter, setStatusFilter] = useState("すべて");
+  const [channelFilter, setChannelFilter] = useState("すべて");
 
-  // APIから整理券データを取得（LocalStorageは使用しない）
+  // APIから整理券データを取得（認証付き）
   const fetchTickets = async () => {
     try {
-      const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
-        method: 'GET',
-        headers: API_CONFIG.headers,
-        mode: 'cors'
-      });
+      const response = await authenticatedFetch('/reservations');
       
       if (response.ok) {
         const data = await response.json();
@@ -66,9 +63,14 @@ export default function TicketsPage(){
                          ticket.count.toString().includes(searchTerm);
     const matchesAge = ageFilter === "すべて" || ticket.age === ageFilter;
     const matchesStatus = statusFilter === "すべて" || ticket.status === statusFilter;
+    const matchesChannel = channelFilter === "すべて" || (ticket as any).channel === channelFilter;
     
-    return matchesSearch && matchesAge && matchesStatus;
+    return matchesSearch && matchesAge && matchesStatus && matchesChannel;
   });
+
+  const getChannelCount = (channel: string) => {
+    return tickets.filter(t => (t as any).channel === channel).length;
+  };
 
   const getStatusCount = (status: string) => {
     return tickets.filter(t => t.status === status).length;
@@ -82,11 +84,9 @@ export default function TicketsPage(){
       );
       setTickets(updatedTickets);
       
-      // APIでステータスを更新
-      const response = await fetch(`${API_CONFIG.baseURL}/reservations/${id}/status`, {
+      // APIでステータスを更新（認証付き）
+      const response = await authenticatedFetch(`/reservations/${id}/status`, {
         method: 'PUT',
-        headers: API_CONFIG.headers,
-        mode: 'cors',
         body: JSON.stringify({ status: newStatus })
       });
       
@@ -217,7 +217,7 @@ export default function TicketsPage(){
         </div>
       </div>
 
-      {/* 統計カード */}
+      {/* 統計カード - ステータス別 */}
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-center justify-between">
@@ -242,9 +242,40 @@ export default function TicketsPage(){
         </div>
       </div>
 
+      {/* 統計カード - チャネル別 */}
+      <div className="grid md:grid-cols-4 gap-4">
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+          <div className="text-blue-700 font-medium text-sm mb-2">📱 モバイル</div>
+          <div className="text-2xl font-bold text-blue-700">{getChannelCount("mobile")}</div>
+        </div>
+        <div className="bg-green-50 rounded-xl border border-green-200 p-4">
+          <div className="text-green-700 font-medium text-sm mb-2">💻 PC</div>
+          <div className="text-2xl font-bold text-green-700">{getChannelCount("web")}</div>
+        </div>
+        <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
+          <div className="text-purple-700 font-medium text-sm mb-2">📲 タブレット</div>
+          <div className="text-2xl font-bold text-purple-700">{getChannelCount("tablet")}</div>
+        </div>
+        <div className="bg-orange-50 rounded-xl border border-orange-200 p-4">
+          <div className="text-orange-700 font-medium text-sm mb-2">👤 管理画面</div>
+          <div className="text-2xl font-bold text-orange-700">{getChannelCount("admin")}</div>
+        </div>
+      </div>
+
       {/* フィルター */}
       <div className="bg-white rounded-xl border p-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <select 
+            className="px-3 py-2 border rounded-lg"
+            value={channelFilter}
+            onChange={(e) => setChannelFilter(e.target.value)}
+          >
+            <option value="すべて">デバイス: すべて</option>
+            <option value="mobile">📱 モバイル</option>
+            <option value="tablet">📲 タブレット</option>
+            <option value="web">💻 PC</option>
+            <option value="admin">👤 管理画面</option>
+          </select>
           <select 
             className="px-3 py-2 border rounded-lg"
             value={ageFilter}

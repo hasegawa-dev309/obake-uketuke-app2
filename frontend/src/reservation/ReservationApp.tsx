@@ -49,12 +49,22 @@ export default function ReservationApp() {
     setError(null);
     
     try {
-      // APIに送信
+      // デバイスタイプを判定
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isTablet = /iPad|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
+      const channel = isMobile && !isTablet ? 'mobile' : isTablet ? 'tablet' : 'web';
+      
+      // APIに送信（channel情報を含む）
       const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
         method: 'POST',
         headers: API_CONFIG.headers,
         mode: 'cors',
-        body: JSON.stringify({ email, count, age })
+        body: JSON.stringify({ 
+          email, 
+          count, 
+          age,
+          channel
+        })
       });
       
       if (!response.ok) {
