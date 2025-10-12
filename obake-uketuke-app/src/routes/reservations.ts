@@ -324,11 +324,40 @@ router.delete("/all", requireAdmin, async (req, res) => {
     }
     
     // データを削除（複数の方法を試す）
+    let deleteSuccess = false;
+    
+    // 方法1: 通常のDELETE
     try {
       await pool.query("DELETE FROM reservations WHERE id > 0");
+      deleteSuccess = true;
+      console.log("✅ 通常のDELETE成功");
     } catch (deleteErr) {
       console.log("⚠️ 通常のDELETE失敗、TRUNCATE試行");
-      await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
+      
+      // 方法2: TRUNCATE
+      try {
+        await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
+        deleteSuccess = true;
+        console.log("✅ TRUNCATE成功");
+      } catch (truncateErr) {
+        console.log("⚠️ TRUNCATE失敗、個別削除試行");
+        
+        // 方法3: 個別削除
+        const ids = await pool.query("SELECT id FROM reservations");
+        for (const row of ids.rows) {
+          try {
+            await pool.query("DELETE FROM reservations WHERE id = $1", [row.id]);
+          } catch (individualErr) {
+            console.log(`⚠️ ID ${row.id} 削除失敗`);
+          }
+        }
+        deleteSuccess = true;
+        console.log("✅ 個別削除完了");
+      }
+    }
+    
+    if (!deleteSuccess) {
+      throw new Error("すべての削除方法が失敗しました");
     }
     
     // メモリ内のカウンターもリセット
