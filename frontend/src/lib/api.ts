@@ -118,34 +118,4 @@ export async function resetCounter() {
   return res.json();
 }
 
-// すべてのデータをクリア（POST統一・認証付き）
-export async function deleteAllReservations() {
-  try {
-    console.log("[deleteAllReservations] リクエスト送信開始");
-    const token = localStorage.getItem("admin_token") || "";
-    const res = await fetch(`${API}/reservations/clear-all`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-    });
-    
-    console.log("[deleteAllReservations] レスポンス受信:", res.status, res.statusText);
-    
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      const msg = json?.error || `HTTP ${res.status}`;
-      console.error("[deleteAllReservations] HTTPエラー:", msg);
-      return { ok: false, error: msg };
-    }
-    
-    const data = await res.json();
-    console.log("[deleteAllReservations] データ取得成功:", data);
-    return data;
-  } catch (err: any) {
-    console.error("[deleteAllReservations] ネットワークエラー:", err);
-    return { ok: false, error: "network_error", detail: err.message };
-  }
-}
 
