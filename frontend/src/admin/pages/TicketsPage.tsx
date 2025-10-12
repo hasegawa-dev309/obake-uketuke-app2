@@ -72,19 +72,72 @@ export default function TicketsPage(){
   };
 
   const exportToCSV = () => {
-    const csvContent = [
-      ["整理券番号", "メール", "人数", "年齢層", "来場状況", "登録時間"],
+    // 整理券データ（メールアドレスなし）
+    const dataRows = [
+      ["整理券番号", "人数", "年齢層", "来場状況", "登録時間"],
       ...filteredTickets.map(ticket => [
         ticket.id,
-        ticket.email,
         ticket.count.toString(),
         ticket.age,
         ticket.status,
         ticket.createdAt
       ])
-    ].map(row => row.join(",")).join("\n");
+    ];
+
+    // 年齢層別の統計
+    const ageStats = ["一般", "大学生", "高校生以下"].map(ageGroup => {
+      const count = tickets.filter(t => t.age === ageGroup).length;
+      return `${ageGroup}: ${count}名`;
+    });
+
+    // 来場状況別の統計
+    const statusStats = ["未確認", "未呼出", "来場済", "キャンセル"].map(status => {
+      const count = tickets.filter(t => t.status === status).length;
+      return `${status}: ${count}件`;
+    });
+
+    // 登録時間別の統計（1時間ごと）
+    const hourStats: { [key: string]: number } = {};
+    tickets.forEach(ticket => {
+      try {
+        // "2024/01/01 14:30" の形式から時間を抽出
+        const timeStr = ticket.createdAt.toString();
+        const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+          const hour = parseInt(match[1]);
+          const hourKey = `${hour}:00-${hour}:59`;
+          hourStats[hourKey] = (hourStats[hourKey] || 0) + 1;
+        }
+      } catch (e) {
+        // エラーは無視
+      }
+    });
+
+    const timeStats = Object.entries(hourStats)
+      .sort((a, b) => {
+        const hourA = parseInt(a[0].split(":")[0]);
+        const hourB = parseInt(b[0].split(":")[0]);
+        return hourA - hourB;
+      })
+      .map(([time, count]) => `${time}: ${count}件`);
+
+    // CSV作成
+    const csvLines = [
+      ...dataRows.map(row => row.join(",")),
+      "",
+      "【年齢層別統計】",
+      ...ageStats,
+      "",
+      "【来場状況別統計】",
+      ...statusStats,
+      "",
+      "【登録時間別統計（1時間ごと）】",
+      ...timeStats
+    ];
+
+    const csvContent = csvLines.join("\n");
     
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);

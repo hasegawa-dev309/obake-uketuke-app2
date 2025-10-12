@@ -46,12 +46,14 @@ export default function CallPage(){
       return;
     }
     
-    const subject = encodeURIComponent("お化け屋敷：順番のお知らせ");
-    const body = encodeURIComponent(
-      `整理券番号 ${current} のお客様\n\nまもなく順番となります。受付までお越しください。\n\nお化け屋敷スタッフ`
-    );
+    const fromEmail = "obakeyasiki.pla.haku@gmail.com";
+    const toEmail = ticket.email;
+    const subject = "お化け屋敷：順番のお知らせ";
+    const body = `整理券番号 ${current} のお客様\n\nまもなく順番となります。受付までお越しください。\n\nお化け屋敷スタッフ`;
     
-    window.open(`mailto:${ticket.email}?subject=${subject}&body=${body}`);
+    // Gmailの作成画面を開く
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
+    window.open(gmailUrl, '_blank');
   };
 
   const sendEmailToUpcomingNumbers = () => {
@@ -65,13 +67,17 @@ export default function CallPage(){
       return;
     }
     
-    const emails = upcomingTickets.map(t => t.email).join(",");
-    const subject = encodeURIComponent("お化け屋敷：まもなくお呼びします");
-    const body = encodeURIComponent(
-      `お化け屋敷の整理券をお持ちのお客様\n\n現在の呼び出し番号は ${current} です。\nまもなくお呼びしますので、受付付近でお待ちください。\n\nお化け屋敷スタッフ`
-    );
+    const fromEmail = "obakeyasiki.pla.haku@gmail.com";
+    const subject = "お化け屋敷：まもなくお呼びします";
+    const body = `お化け屋敷の整理券をお持ちのお客様\n\n現在の呼び出し番号は ${current} です。\nまもなくお呼びしますので、受付付近でお待ちください。\n\nお化け屋敷スタッフ`;
     
-    window.open(`mailto:${emails}?subject=${subject}&body=${body}`);
+    // 複数の宛先にメールを送る場合は、各宛先に対して個別にGmail作成画面を開く
+    upcomingTickets.forEach((ticket, index) => {
+      setTimeout(() => {
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ticket.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
+        window.open(gmailUrl, '_blank');
+      }, index * 500); // 0.5秒ずつ遅延させて開く
+    });
   };
 
   return (
