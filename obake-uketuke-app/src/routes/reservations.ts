@@ -308,20 +308,34 @@ router.delete("/all", requireAdmin, async (req, res) => {
   try {
     console.log("🗑️ [DELETE /all] データ削除開始");
     
-    // シンプルにDELETE実行
-    const result = await pool.query("DELETE FROM reservations");
-    const deletedCount = result.rowCount || 0;
+    // まず件数を取得
+    const countResult = await pool.query("SELECT COUNT(*) as count FROM reservations");
+    const totalCount = parseInt(countResult.rows[0].count);
+    
+    if (totalCount === 0) {
+      // データが既に空の場合
+      currentNumber = 1;
+      systemPaused = false;
+      return res.json({ 
+        ok: true, 
+        message: "データは既に空です",
+        data: { deletedCount: 0, currentNumber: 1 } 
+      });
+    }
+    
+    // データを削除
+    await pool.query("DELETE FROM reservations WHERE id > 0");
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /all] ${deletedCount}件削除完了`);
+    console.log(`✅ [DELETE /all] ${totalCount}件削除完了`);
     
     return res.json({ 
       ok: true, 
-      message: `${deletedCount}件のデータを削除しました`,
-      data: { deletedCount, currentNumber: 1 } 
+      message: `${totalCount}件のデータを削除しました`,
+      data: { deletedCount: totalCount, currentNumber: 1 } 
     });
   } catch (err) {
     console.error("❌ [DELETE /all] エラー:", err);
