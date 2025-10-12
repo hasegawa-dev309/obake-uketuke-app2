@@ -315,11 +315,36 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
     currentNumber = 1;
     systemPaused = false;
     
-    res.json({ ok: true, message: "all cleared" });
+    res.json({ ok: true, message: "cleared" });
   } catch (err) {
     res.json({ ok: false, message: "failed" });
   } finally {
     client.release();
+  }
+});
+
+// POSTメソッドでの削除（Vercel対応）
+router.post("/clear-all", requireAdmin, async (req, res) => {
+  // DELETEメソッドのシミュレーション
+  if (req.body._method === "DELETE") {
+    const client = await pool.connect();
+    
+    try {
+      await client.query("DELETE FROM reservations");
+      await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
+      
+      // メモリ内のカウンターもリセット
+      currentNumber = 1;
+      systemPaused = false;
+      
+      res.json({ ok: true, message: "cleared" });
+    } catch (err) {
+      res.json({ ok: false, message: "failed" });
+    } finally {
+      client.release();
+    }
+  } else {
+    res.json({ ok: false, message: "invalid method" });
   }
 });
 

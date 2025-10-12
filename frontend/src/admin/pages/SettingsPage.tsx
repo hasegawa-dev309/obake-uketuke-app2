@@ -14,7 +14,7 @@ export function SettingsPage() {
       const result = await deleteAllReservations();
       
       if (result.ok) {
-        alert("✅ データがすべて削除されました");
+        alert("✅ すべてのデータを削除しました");
         // LocalStorageもクリーンアップ（互換性のため）
         localStorage.removeItem("admin_tickets");
         localStorage.removeItem("obake_tickets_v1");
@@ -24,11 +24,11 @@ export function SettingsPage() {
         // 少し待ってからリロード
         setTimeout(() => window.location.reload(), 500);
       } else {
-        alert("❌ 削除に失敗しました。再試行してください");
+        alert("❌ サーバーに接続できません。もう一度お試しください");
       }
     } catch (err) {
       console.error("データクリアエラー:", err);
-      alert("❌ 削除に失敗しました。再試行してください");
+      alert("❌ サーバーに接続できません。もう一度お試しください");
     } finally {
       setLoading(false);
     }

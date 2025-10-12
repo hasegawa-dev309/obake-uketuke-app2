@@ -121,7 +121,8 @@ export async function resetCounter() {
 // すべてのデータをクリア（管理API）
 export async function deleteAllReservations() {
   const res = await authenticatedFetch('/reservations/clear-all', {
-    method: 'DELETE'
+    method: 'POST',
+    body: JSON.stringify({ _method: "DELETE" })
   });
   return res.json();
 }
