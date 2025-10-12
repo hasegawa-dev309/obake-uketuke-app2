@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowClockwise, Envelope, EnvelopeOpen } from "phosphor-react";
+import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
 
 type Ticket = { 
   id: string; 
@@ -36,10 +36,7 @@ export default function CallPage(){
   }, []);
 
   const handleReload = () => {
-    const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
-    setCurrent(savedNumber);
-    const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
-    setTickets(adminTickets);
+    window.location.reload();
   };
 
   const sendEmailToCurrentNumber = () => {
@@ -169,8 +166,8 @@ export default function CallPage(){
           <div className="text-sm text-slate-600">現在の番号</div>
         </div>
         <div className="bg-white rounded-xl border p-4 text-center">
-          <div className="text-2xl font-bold text-green-600">
-            {paused ? "⏸️" : "▶️"}
+          <div className="text-2xl font-bold text-green-600 flex items-center justify-center">
+            {paused ? <Pause size={32} weight="fill" /> : <Play size={32} weight="fill" />}
           </div>
           <div className="text-sm text-slate-600">状態</div>
         </div>

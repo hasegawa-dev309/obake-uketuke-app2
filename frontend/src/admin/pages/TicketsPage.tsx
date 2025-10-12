@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock } from "phosphor-react";
+import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
 
 type Ticket = { 
   id: string; 
@@ -108,12 +108,9 @@ export default function TicketsPage(){
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button 
-            onClick={() => {
-              const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
-              setTickets(adminTickets);
-            }}
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center gap-2"
-            title="データを再読み込み"
+            title="ページを再読み込み"
           >
             <ArrowClockwise size={18} weight="bold" />
             リロード
@@ -179,6 +176,7 @@ export default function TicketsPage(){
             <option value="未呼出">未呼出</option>
             <option value="来場済">来場済</option>
             <option value="未確認">未確認</option>
+            <option value="キャンセル">キャンセル</option>
           </select>
           <input
             type="text"
@@ -213,7 +211,7 @@ export default function TicketsPage(){
           </thead>
           <tbody>
             {filteredTickets.map((ticket, index) => (
-              <tr key={`${ticket.id}-${index}`} className="border-t">
+              <tr key={`${ticket.id}-${index}`} className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}>
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
                   #{ticket.ticketNo || ticket.id}
                 </td>
@@ -224,6 +222,7 @@ export default function TicketsPage(){
                   <span className={`px-2 py-1 rounded-full text-xs ${
                     ticket.status === "未確認" ? "bg-yellow-100 text-yellow-700" :
                     ticket.status === "未呼出" ? "bg-blue-100 text-blue-700" :
+                    ticket.status === "キャンセル" ? "bg-red-100 text-red-700" :
                     "bg-green-100 text-green-700"
                   }`}>
                     {ticket.status}
@@ -231,7 +230,7 @@ export default function TicketsPage(){
                 </td>
                 <td className="px-3 py-2">{ticket.createdAt}</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button 
                       onClick={() => updateStatus(ticket.id, "来場済")}
                       className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
@@ -249,6 +248,13 @@ export default function TicketsPage(){
                       className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
                     >
                       未確認
+                    </button>
+                    <button 
+                      onClick={() => updateStatus(ticket.id, "キャンセル")}
+                      className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
+                    >
+                      <XCircle size={14} weight="bold" />
+                      キャンセル
                     </button>
                   </div>
                 </td>

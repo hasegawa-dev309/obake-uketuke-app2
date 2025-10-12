@@ -4,12 +4,17 @@ import "../index.css";
 
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
+  const [currentNumber, setCurrentNumber] = useState<number>(1);
 
   useEffect(() => {
     // URLパラメータから整理券番号を取得
     const urlParams = new URLSearchParams(window.location.search);
     const ticket = urlParams.get('ticket') || '';
     setTicketNo(ticket);
+
+    // 現在の呼び出し番号を取得
+    const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
+    setCurrentNumber(savedNumber);
   }, []);
 
   return (
@@ -29,10 +34,21 @@ function CompletePage() {
 
         {ticketNo && (
           <div className="mb-6">
-            <div className="text-sm text-gray-500 mb-2">整理券番号</div>
-            <div className="text-4xl font-bold text-violet-600">
+            <div className="text-sm text-gray-500 mb-2">あなたの整理券番号</div>
+            <div className="text-5xl font-bold text-violet-600 mb-4">
               #{ticketNo}
             </div>
+            <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
+              <div>
+                <span className="text-gray-500">現在の呼び出し番号: </span>
+                <span className="font-bold text-violet-700 text-lg">#{currentNumber}</span>
+              </div>
+            </div>
+            {Number(ticketNo) - currentNumber > 0 && (
+              <div className="mt-3 text-sm text-gray-500">
+                あと約 <span className="font-bold text-violet-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
+              </div>
+            )}
           </div>
         )}
 

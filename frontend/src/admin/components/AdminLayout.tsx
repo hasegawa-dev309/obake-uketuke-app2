@@ -1,7 +1,22 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Ghost, Ticket, UserList, PlusCircle, Gear } from "phosphor-react";
+import { Ghost, Ticket, UserList, PlusCircle, Gear, Hash } from "phosphor-react";
+import { useEffect, useState } from "react";
 
 export default function AdminLayout() {
+  const [currentTicket, setCurrentTicket] = useState<number>(1);
+
+  useEffect(() => {
+    // 現在の呼び出し番号を取得
+    const updateCurrentTicket = () => {
+      const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
+      setCurrentTicket(savedNumber);
+    };
+    updateCurrentTicket();
+    // 定期的に更新
+    const interval = setInterval(updateCurrentTicket, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <aside className="w-64 border-r bg-white">
@@ -14,6 +29,15 @@ export default function AdminLayout() {
               <div className="font-bold text-lg">お化け屋敷</div>
               <div className="text-xs text-slate-500">整理券システム</div>
             </div>
+          </div>
+          
+          {/* 現在の整理券番号 */}
+          <div className="mt-4 p-3 bg-violet-50 rounded-lg border border-violet-200">
+            <div className="flex items-center gap-2 mb-1">
+              <Hash size={16} weight="bold" className="text-violet-600" />
+              <div className="text-xs font-medium text-violet-600">現在の整理券</div>
+            </div>
+            <div className="text-2xl font-bold text-violet-700">{currentTicket}</div>
           </div>
         </div>
         
