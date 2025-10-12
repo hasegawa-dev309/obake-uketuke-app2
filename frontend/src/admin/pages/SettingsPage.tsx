@@ -1,29 +1,35 @@
-import { useState } from "react";
-import { resetCounter, clearAllData } from "../../lib/api";
+import { useState } from 'react';
+import { resetCounter, deleteAllReservations } from '../../lib/api';
 
 export function SettingsPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleClearData = async () => {
     if (!confirm("すべての整理券データをクリアしますか？この操作は取り消せません。")) {
       return;
     }
-
-    setIsLoading(true);
+    
+    setLoading(true);
     try {
-      const result = await clearAllData();
+      const result = await deleteAllReservations();
       
       if (result.ok) {
-        alert(result.message || "すべてのデータをクリアしました");
+        alert(result.message || "データをクリアしました");
+        // LocalStorageもクリーンアップ（互換性のため）
+        localStorage.removeItem("admin_tickets");
+        localStorage.removeItem("obake_tickets_v1");
+        localStorage.removeItem("lastTicketNumber");
+        localStorage.removeItem("current_number");
+        localStorage.removeItem("ticket_counter");
         window.location.reload();
       } else {
-        alert(`エラー: ${result.error || "データのクリアに失敗しました"}`);
+        alert(`エラー: ${result.error || "データクリアに失敗しました"}`);
       }
     } catch (err) {
       console.error("データクリアエラー:", err);
-      alert("データのクリアに失敗しました。ネットワーク接続を確認してください。");
+      alert("データクリアに失敗しました。ネットワークを確認してください。");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -31,22 +37,26 @@ export function SettingsPage() {
     if (!confirm("呼び出し番号と整理券番号を1にリセットしますか？")) {
       return;
     }
-
-    setIsLoading(true);
+    
+    setLoading(true);
     try {
       const result = await resetCounter();
       
       if (result.ok) {
-        alert(result.message || "呼び出し番号をリセットしました");
+        alert(result.message || "カウンターをリセットしました");
+        // LocalStorageもクリーンアップ（互換性のため）
+        localStorage.removeItem("current_number");
+        localStorage.removeItem("ticket_counter");
+        localStorage.removeItem("lastTicketNumber");
         window.location.reload();
       } else {
         alert(`エラー: ${result.error || "リセットに失敗しました"}`);
       }
     } catch (err) {
-      console.error("リセットエラー:", err);
-      alert("リセットに失敗しました。ネットワーク接続を確認してください。");
+      console.error("カウンターリセットエラー:", err);
+      alert("カウンターリセットに失敗しました。ネットワークを確認してください。");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -62,10 +72,10 @@ export function SettingsPage() {
           <div>
             <button 
               onClick={handleResetCallNumber}
-              disabled={isLoading}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
             >
-              {isLoading ? "処理中..." : "呼び出し番号・整理券番号をリセット"}
+              {loading ? "処理中..." : "呼び出し番号・整理券番号をリセット"}
             </button>
             <p className="text-sm text-slate-600 mt-2">
               呼び出し番号と整理券番号を1に戻します
@@ -75,10 +85,10 @@ export function SettingsPage() {
           <div className="pt-4 border-t">
             <button 
               onClick={handleClearData}
-              disabled={isLoading}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={loading}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
             >
-              {isLoading ? "処理中..." : "すべてのデータをクリア"}
+              {loading ? "処理中..." : "すべてのデータをクリア"}
             </button>
             <p className="text-sm text-slate-600 mt-2">
               ⚠️ すべての整理券データと呼び出し番号が削除されます（取り消し不可）

@@ -104,7 +104,7 @@ export async function updateCurrentNumber(currentNumber: number, systemPaused: b
   return res.json();
 }
 
-// 呼び出し番号リセット（管理API）
+// カウンターリセット（管理API）
 export async function resetCounter() {
   const res = await authenticatedFetch('/reservations/reset-counter', {
     method: 'POST'
@@ -113,8 +113,8 @@ export async function resetCounter() {
 }
 
 // すべてのデータをクリア（管理API）
-export async function clearAllData() {
-  const res = await authenticatedFetch('/reservations/clear-all', {
+export async function deleteAllReservations() {
+  const res = await authenticatedFetch('/reservations/all', {
     method: 'DELETE'
   });
   return res.json();

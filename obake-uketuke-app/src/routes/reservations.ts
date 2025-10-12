@@ -268,50 +268,54 @@ router.get("/counter", async (_req, res) => {
   }
 });
 
-// 呼び出し番号リセットAPI（管理者のみ）
-router.post("/reset-counter", requireAdmin, (_req, res) => {
+// 呼び出し番号・整理券番号のリセット（管理者のみ）
+router.post("/reset-counter", requireAdmin, async (req, res) => {
   try {
+    console.log("🔄 [POST /reset-counter] カウンターリセット開始");
+    
+    // メモリ内の呼び出し番号をリセット
     currentNumber = 1;
     systemPaused = false;
-    console.log("🔄 [POST /reset-counter] 呼び出し番号をリセット: 1");
+    
+    console.log("✅ [POST /reset-counter] カウンターをリセット: 1");
     
     return res.json({ 
       ok: true, 
-      message: "呼び出し番号をリセットしました",
-      data: { currentNumber, systemPaused } 
+      message: "カウンターをリセットしました",
+      data: { currentNumber: 1, systemPaused: false } 
     });
   } catch (err) {
     console.error("❌ [POST /reset-counter] エラー:", err);
-    return res.status(500).json({ ok: false, error: "server_error" });
+    return res.status(500).json({ ok: false, error: "reset_failed" });
   }
 });
 
-// すべてのデータをクリアAPI（管理者のみ）
-router.delete("/clear-all", requireAdmin, async (_req, res) => {
+// すべてのデータをクリア（管理者のみ）
+router.delete("/all", requireAdmin, async (req, res) => {
   try {
-    console.log("🗑️ [DELETE /clear-all] すべてのデータをクリア開始");
+    console.log("🗑️ [DELETE /all] すべてのデータ削除開始");
+    
+    if (!pool) {
+      return res.status(500).json({ ok: false, error: "db_not_configured" });
+    }
     
     // すべての予約データを削除
-    const result = await pool.query(`
-      DELETE FROM reservations
-      RETURNING id
-    `);
-    
+    const result = await pool.query("DELETE FROM reservations");
     const deletedCount = result.rowCount || 0;
     
-    // 呼び出し番号もリセット
+    // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /clear-all] ${deletedCount}件のデータを削除、番号をリセット`);
+    console.log(`✅ [DELETE /all] ${deletedCount}件のデータを削除、カウンターをリセット`);
     
     return res.json({ 
       ok: true, 
       message: `${deletedCount}件のデータを削除しました`,
-      data: { deletedCount, currentNumber, systemPaused }
+      data: { deletedCount, currentNumber: 1 } 
     });
   } catch (err) {
-    console.error("❌ [DELETE /clear-all] DBエラー:", err);
+    console.error("❌ [DELETE /all] DBエラー:", err);
     return res.status(500).json({ ok: false, error: "db_error" });
   }
 });
