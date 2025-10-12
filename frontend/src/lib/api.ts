@@ -120,13 +120,30 @@ export async function resetCounter() {
 
 // すべてのデータをクリア（直接Heroku API）
 export async function deleteAllReservations() {
-  const res = await fetch("https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/reservations/clear-all", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ _method: "DELETE" }),
-  });
-  return res.json();
+  try {
+    console.log("[deleteAllReservations] リクエスト送信開始");
+    const res = await fetch("https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/reservations/clear-all", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ _method: "DELETE" }),
+    });
+    
+    console.log("[deleteAllReservations] レスポンス受信:", res.status, res.statusText);
+    
+    if (!res.ok) {
+      console.error("[deleteAllReservations] HTTPエラー:", res.status);
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    
+    const data = await res.json();
+    console.log("[deleteAllReservations] データ取得成功:", data);
+    return data;
+  } catch (err: any) {
+    console.error("[deleteAllReservations] ネットワークエラー:", err);
+    return { ok: false, error: "network_error", detail: err.message };
+  }
 }
 

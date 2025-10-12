@@ -11,10 +11,13 @@ export function SettingsPage() {
     
     setLoading(true);
     try {
+      console.log("[handleClearData] 削除処理開始");
       const result = await deleteAllReservations();
+      console.log("[handleClearData] 削除結果:", result);
       
       if (result.ok) {
-        alert("✅ すべてのデータを削除しました");
+        const count = result.deletedCount || 0;
+        alert(`✅ すべてのデータを削除しました（${count}件）`);
         // LocalStorageもクリーンアップ（互換性のため）
         localStorage.removeItem("admin_tickets");
         localStorage.removeItem("obake_tickets_v1");
@@ -24,10 +27,12 @@ export function SettingsPage() {
         // 少し待ってからリロード
         setTimeout(() => window.location.reload(), 500);
       } else {
-        alert("❌ クリアに失敗しました。もう一度お試しください。");
+        const errorMsg = result.detail || result.error || "不明なエラー";
+        alert(`❌ クリアに失敗しました: ${errorMsg}`);
+        console.error("[handleClearData] エラー詳細:", result);
       }
     } catch (err) {
-      console.error("データクリアエラー:", err);
+      console.error("[handleClearData] 予期しないエラー:", err);
       alert("❌ ネットワークエラー: " + (err as Error).message);
     } finally {
       setLoading(false);

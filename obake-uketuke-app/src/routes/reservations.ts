@@ -325,29 +325,33 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
 
 // POSTメソッドでの削除（Vercel対応・認証不要）
 router.post("/clear-all", async (req, res) => {
+  console.log("[POST /clear-all] リクエスト受信:", req.body);
+  
   try {
     const method = (req.body?._method || "").toUpperCase();
     if (method !== "DELETE") {
+      console.log("[POST /clear-all] 無効なメソッド:", method);
       return res.status(400).json({ ok: false, error: "invalid_method" });
     }
 
-    const client = await pool.connect();
+    console.log("[POST /clear-all] DELETE実行開始");
     
-    try {
-      await client.query("TRUNCATE TABLE reservations RESTART IDENTITY");
-      
-      // メモリ内のカウンターもリセット
-      currentNumber = 1;
-      systemPaused = false;
-      
-      res.json({ ok: true });
-    } catch (err) {
-      res.json({ ok: false, error: "db_error" });
-    } finally {
-      client.release();
-    }
-  } catch (e) {
-    res.json({ ok: false, error: "server_error" });
+    // シンプルなDELETEクエリを使用
+    const result = await pool.query("DELETE FROM reservations");
+    console.log("[POST /clear-all] 削除成功:", result.rowCount, "件");
+    
+    // シーケンスをリセット
+    await pool.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
+    console.log("[POST /clear-all] シーケンスリセット成功");
+    
+    // メモリ内のカウンターもリセット
+    currentNumber = 1;
+    systemPaused = false;
+    
+    res.json({ ok: true, deletedCount: result.rowCount });
+  } catch (err: any) {
+    console.error("[POST /clear-all] エラー:", err.message, err.stack);
+    res.json({ ok: false, error: "db_error", detail: err.message });
   }
 });
 
