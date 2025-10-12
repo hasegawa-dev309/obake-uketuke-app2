@@ -312,24 +312,25 @@ router.delete("/all", requireAdmin, async (req, res) => {
       return res.status(500).json({ ok: false, error: "db_not_configured" });
     }
     
-    // すべての予約データを削除
-    const result = await pool.query("DELETE FROM reservations");
-    const deletedCount = result.rowCount || 0;
+    // すべての予約データを削除（TRUNCATEを使用）
+    await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /all] ${deletedCount}件のデータを削除、カウンターをリセット`);
+    console.log(`✅ [DELETE /all] 全データを削除、カウンターをリセット`);
     
     return res.json({ 
       ok: true, 
-      message: `${deletedCount}件のデータを削除しました`,
-      data: { deletedCount, currentNumber: 1 } 
+      message: "すべてのデータを削除しました",
+      data: { currentNumber: 1 } 
     });
   } catch (err) {
     console.error("❌ [DELETE /all] DBエラー:", err);
-    return res.status(500).json({ ok: false, error: "db_error" });
+    const errorMessage = err instanceof Error ? err.message : "unknown error";
+    console.error("❌ [DELETE /all] エラー詳細:", errorMessage);
+    return res.status(500).json({ ok: false, error: "db_error", details: errorMessage });
   }
 });
 
