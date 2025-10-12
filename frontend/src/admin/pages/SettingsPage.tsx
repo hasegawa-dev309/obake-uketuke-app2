@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resetCounter, deleteAllReservations, clearAllReservations } from '../../lib/api';
+import { resetCounter, deleteAllReservations } from '../../lib/api';
 
 export function SettingsPage() {
   const [loading, setLoading] = useState(false);
@@ -10,53 +10,28 @@ export function SettingsPage() {
     }
     
     setLoading(true);
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        console.log(`データクリア試行 ${retryCount + 1}/${maxRetries}`);
-        // まずDELETEメソッドを試す
-        let result = await deleteAllReservations();
-        
-        // DELETEが失敗した場合はPOSTメソッドを試す
-        if (!result.ok && retryCount > 0) {
-          console.log("DELETE失敗、POSTメソッドを試行");
-          result = await clearAllReservations();
-        }
-        
-        if (result.ok) {
-          alert(result.message || "データをクリアしました");
-          // LocalStorageもクリーンアップ（互換性のため）
-          localStorage.removeItem("admin_tickets");
-          localStorage.removeItem("obake_tickets_v1");
-          localStorage.removeItem("lastTicketNumber");
-          localStorage.removeItem("current_number");
-          localStorage.removeItem("ticket_counter");
-          // 少し待ってからリロード
-          setTimeout(() => window.location.reload(), 500);
-          return; // 成功したら終了
-        } else {
-          console.log(`試行 ${retryCount + 1} 失敗:`, result.error || result.message);
-          if (retryCount === maxRetries - 1) {
-            alert(`エラー: ${result.message || result.error || "データクリアに失敗しました"}`);
-          }
-        }
-      } catch (err) {
-        console.error(`データクリアエラー (試行 ${retryCount + 1}):`, err);
-        if (retryCount === maxRetries - 1) {
-          alert("データクリアに失敗しました。しばらく時間をおいてから再度お試しください。");
-        }
-      }
+    try {
+      const result = await deleteAllReservations();
       
-      retryCount++;
-      if (retryCount < maxRetries) {
-        // リトライ前に少し待機
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (result.ok) {
+        alert("✅ データがすべて削除されました");
+        // LocalStorageもクリーンアップ（互換性のため）
+        localStorage.removeItem("admin_tickets");
+        localStorage.removeItem("obake_tickets_v1");
+        localStorage.removeItem("lastTicketNumber");
+        localStorage.removeItem("current_number");
+        localStorage.removeItem("ticket_counter");
+        // 少し待ってからリロード
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        alert("❌ 削除に失敗しました。再試行してください");
       }
+    } catch (err) {
+      console.error("データクリアエラー:", err);
+      alert("❌ 削除に失敗しました。再試行してください");
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleResetCallNumber = async () => {

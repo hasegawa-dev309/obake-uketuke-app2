@@ -303,134 +303,21 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
   }
 });
 
-// すべてのデータをクリア（管理者のみ）
-router.delete("/all", requireAdmin, async (req, res) => {
+// すべてのデータをクリア（管理者のみ）- シンプル版
+router.delete("/clear-all", requireAdmin, async (req, res) => {
   try {
-    console.log("🗑️ [DELETE /all] データ削除開始");
-    
-    // まず件数を取得
-    const countResult = await pool.query("SELECT COUNT(*) as count FROM reservations");
-    const totalCount = parseInt(countResult.rows[0].count);
-    
-    if (totalCount === 0) {
-      // データが既に空の場合
-      currentNumber = 1;
-      systemPaused = false;
-      return res.json({ 
-        ok: true, 
-        message: "データは既に空です",
-        data: { deletedCount: 0, currentNumber: 1 } 
-      });
-    }
-    
-    // データを削除（複数の方法を試す）
-    let deleteSuccess = false;
-    
-    // 方法1: 通常のDELETE
-    try {
-      await pool.query("DELETE FROM reservations WHERE id > 0");
-      deleteSuccess = true;
-      console.log("✅ 通常のDELETE成功");
-    } catch (deleteErr) {
-      console.log("⚠️ 通常のDELETE失敗、TRUNCATE試行");
-      
-      // 方法2: TRUNCATE
-      try {
-        await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
-        deleteSuccess = true;
-        console.log("✅ TRUNCATE成功");
-      } catch (truncateErr) {
-        console.log("⚠️ TRUNCATE失敗、個別削除試行");
-        
-        // 方法3: 個別削除
-        const ids = await pool.query("SELECT id FROM reservations");
-        for (const row of ids.rows) {
-          try {
-            await pool.query("DELETE FROM reservations WHERE id = $1", [row.id]);
-          } catch (individualErr) {
-            console.log(`⚠️ ID ${row.id} 削除失敗`);
-          }
-        }
-        deleteSuccess = true;
-        console.log("✅ 個別削除完了");
-      }
-    }
-    
-    if (!deleteSuccess) {
-      throw new Error("すべての削除方法が失敗しました");
-    }
+    const client = await pool.connect();
+    await client.query("DELETE FROM reservations;");
+    await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1;");
+    client.release();
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /all] ${totalCount}件削除完了`);
-    
-    return res.json({ 
-      ok: true, 
-      message: `${totalCount}件のデータを削除しました`,
-      data: { deletedCount: totalCount, currentNumber: 1 } 
-    });
+    res.json({ ok: true, message: "all cleared" });
   } catch (err) {
-    console.error("❌ [DELETE /all] エラー:", err);
-    
-    // エラーが発生してもメモリ内のカウンターはリセット
-    currentNumber = 1;
-    systemPaused = false;
-    
-    return res.status(500).json({ 
-      ok: false, 
-      error: "削除に失敗しました",
-      message: "データベースエラーが発生しました。管理者にお問い合わせください。" 
-    });
-  }
-});
-
-// 別のアプローチ: POSTメソッドでデータクリア
-router.post("/clear-all", requireAdmin, async (req, res) => {
-  try {
-    console.log("🗑️ [POST /clear-all] データ削除開始");
-    
-    // 件数を取得
-    const countResult = await pool.query("SELECT COUNT(*) as count FROM reservations");
-    const totalCount = parseInt(countResult.rows[0].count);
-    
-    if (totalCount === 0) {
-      currentNumber = 1;
-      systemPaused = false;
-      return res.json({ 
-        ok: true, 
-        message: "データは既に空です",
-        data: { deletedCount: 0, currentNumber: 1 } 
-      });
-    }
-    
-    // 最もシンプルな削除
-    await pool.query("DELETE FROM reservations");
-    
-    // メモリ内のカウンターもリセット
-    currentNumber = 1;
-    systemPaused = false;
-    
-    console.log(`✅ [POST /clear-all] ${totalCount}件削除完了`);
-    
-    return res.json({ 
-      ok: true, 
-      message: `${totalCount}件のデータを削除しました`,
-      data: { deletedCount: totalCount, currentNumber: 1 } 
-    });
-  } catch (err) {
-    console.error("❌ [POST /clear-all] エラー:", err);
-    
-    // エラーが発生してもメモリ内のカウンターはリセット
-    currentNumber = 1;
-    systemPaused = false;
-    
-    return res.status(500).json({ 
-      ok: false, 
-      error: "削除に失敗しました",
-      message: "データベースエラーが発生しました。" 
-    });
+    res.json({ ok: false, message: "failed" });
   }
 });
 
