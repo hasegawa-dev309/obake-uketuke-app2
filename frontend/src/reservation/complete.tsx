@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import "../index.css";
 
+const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
+
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
   const [currentNumber, setCurrentNumber] = useState<number>(1);
@@ -12,9 +14,28 @@ function CompletePage() {
     const ticket = urlParams.get('ticket') || '';
     setTicketNo(ticket);
 
-    // 現在の呼び出し番号を取得
-    const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
-    setCurrentNumber(savedNumber);
+    // APIから現在の呼び出し番号を取得
+    const fetchCurrentNumber = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/reservations/current-number`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentNumber(data.currentNumber || 1);
+        }
+      } catch (err) {
+        console.error("現在の番号取得エラー:", err);
+      }
+    };
+    
+    fetchCurrentNumber();
+    // 定期的に更新（3秒ごと）
+    const interval = setInterval(fetchCurrentNumber, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   return (

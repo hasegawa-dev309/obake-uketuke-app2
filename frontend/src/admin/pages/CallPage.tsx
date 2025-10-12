@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
+import { API_CONFIG } from "../../config/api.config";
 
 type Ticket = { 
   id: string; 
@@ -12,26 +13,74 @@ type Ticket = {
 };
 
 export default function CallPage(){
-  const [current, setCurrent] = useState<number>(Number(localStorage.getItem("current_number") ?? "1"));
-  const [paused, setPaused] = useState(localStorage.getItem("system_paused") === "true");
+  const [current, setCurrent] = useState<number>(1);
+  const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
+  // APIから現在の番号とシステム状態を取得
   useEffect(() => {
-    localStorage.setItem("current_number", String(current));
-  }, [current]);
-
-  useEffect(() => {
-    localStorage.setItem("system_paused", String(paused));
-  }, [paused]);
-
-  // 整理券データを定期的に取得
-  useEffect(() => {
-    const updateTickets = () => {
-      const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
-      setTickets(adminTickets);
+    const fetchCurrentNumber = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
+          method: 'GET',
+          headers: API_CONFIG.headers,
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCurrent(data.currentNumber || 1);
+          setPaused(data.systemPaused || false);
+        }
+      } catch (err) {
+        console.error("現在の番号取得エラー:", err);
+      }
     };
-    updateTickets();
-    const interval = setInterval(updateTickets, 1000);
+    
+    fetchCurrentNumber();
+    const interval = setInterval(fetchCurrentNumber, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // currentまたはpausedが変更されたらAPIに保存
+  useEffect(() => {
+    const saveCurrentNumber = async () => {
+      try {
+        await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
+          method: 'PUT',
+          headers: API_CONFIG.headers,
+          mode: 'cors',
+          body: JSON.stringify({ currentNumber: current, systemPaused: paused })
+        });
+      } catch (err) {
+        console.error("現在の番号保存エラー:", err);
+      }
+    };
+    
+    saveCurrentNumber();
+  }, [current, paused]);
+
+  // 整理券データをAPIから取得
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
+          method: 'GET',
+          headers: API_CONFIG.headers,
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setTickets(data);
+        }
+      } catch (err) {
+        console.error("整理券データ取得エラー:", err);
+      }
+    };
+    
+    fetchTickets();
+    const interval = setInterval(fetchTickets, 3000);
     return () => clearInterval(interval);
   }, []);
 

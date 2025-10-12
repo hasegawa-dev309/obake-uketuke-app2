@@ -1,19 +1,33 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { Ghost, Ticket, UserList, PlusCircle, Gear, Hash } from "phosphor-react";
 import { useEffect, useState } from "react";
+import { API_CONFIG } from "../../config/api.config";
 
 export default function AdminLayout() {
   const [currentTicket, setCurrentTicket] = useState<number>(1);
 
   useEffect(() => {
-    // 現在の呼び出し番号を取得
-    const updateCurrentTicket = () => {
-      const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
-      setCurrentTicket(savedNumber);
+    // APIから現在の呼び出し番号を取得
+    const updateCurrentTicket = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/reservations/current-number`, {
+          method: 'GET',
+          headers: API_CONFIG.headers,
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentTicket(data.currentNumber || 1);
+        }
+      } catch (err) {
+        console.error("現在の番号取得エラー:", err);
+      }
     };
+    
     updateCurrentTicket();
-    // 定期的に更新
-    const interval = setInterval(updateCurrentTicket, 1000);
+    // 定期的に更新（3秒ごと）
+    const interval = setInterval(updateCurrentTicket, 3000);
     return () => clearInterval(interval);
   }, []);
 

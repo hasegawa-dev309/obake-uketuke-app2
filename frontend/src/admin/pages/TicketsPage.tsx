@@ -18,21 +18,26 @@ export default function TicketsPage(){
   const [ageFilter, setAgeFilter] = useState("すべて");
   const [statusFilter, setStatusFilter] = useState("すべて");
 
-  // APIから整理券データを取得
+  // APIから整理券データを取得（LocalStorageは使用しない）
   const fetchTickets = async () => {
     try {
-      const response = await fetch(`${API_CONFIG.baseURL}/reservations`);
+      const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
+        method: 'GET',
+        headers: API_CONFIG.headers,
+        mode: 'cors'
+      });
+      
       if (response.ok) {
         const data = await response.json();
+        console.log("整理券データを取得しました:", data.length + "件");
         setTickets(data);
-        // LocalStorageにも保存（互換性のため）
-        localStorage.setItem("admin_tickets", JSON.stringify(data));
+      } else {
+        console.error("整理券データの取得に失敗:", response.status);
+        setTickets([]);
       }
     } catch (err) {
-      console.error("整理券データの取得に失敗しました:", err);
-      // エラー時はLocalStorageから取得
-      const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
-      setTickets(adminTickets);
+      console.error("整理券データの取得エラー:", err);
+      setTickets([]);
     }
   };
 
@@ -40,12 +45,12 @@ export default function TicketsPage(){
     // 初回読み込み
     fetchTickets();
     
-    // 定期的に更新（5秒ごと）
-    const interval = setInterval(fetchTickets, 5000);
+    // 定期的に更新（3秒ごと）
+    const interval = setInterval(fetchTickets, 3000);
     
     // カスタムイベントリスナー（予約フォームからの通知）
     const handleTicketAdded = () => {
-      fetchTickets();
+      setTimeout(fetchTickets, 500); // 0.5秒後に取得
     };
     window.addEventListener('ticketAdded', handleTicketAdded);
     
@@ -71,32 +76,33 @@ export default function TicketsPage(){
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
+      // 楽観的更新（即座にUIを更新）
+      const updatedTickets = tickets.map(t => 
+        t.id === id || t.ticketNo === id ? { ...t, status: newStatus } : t
+      );
+      setTickets(updatedTickets);
+      
       // APIでステータスを更新
       const response = await fetch(`${API_CONFIG.baseURL}/reservations/${id}/status`, {
         method: 'PUT',
         headers: API_CONFIG.headers,
+        mode: 'cors',
         body: JSON.stringify({ status: newStatus })
       });
       
       if (response.ok) {
-        // 成功したら再取得
-        fetchTickets();
+        console.log("ステータスを更新しました");
+        // 成功したら再取得して確実に同期
+        setTimeout(fetchTickets, 500);
       } else {
-        // エラー時はローカル更新
-        const updatedTickets = tickets.map(t => 
-          t.id === id ? { ...t, status: newStatus } : t
-        );
-        setTickets(updatedTickets);
-        localStorage.setItem("admin_tickets", JSON.stringify(updatedTickets));
+        console.error("ステータス更新に失敗:", response.status);
+        // エラー時は元に戻す
+        fetchTickets();
       }
     } catch (err) {
-      console.error("ステータス更新に失敗しました:", err);
-      // エラー時はローカル更新
-      const updatedTickets = tickets.map(t => 
-        t.id === id ? { ...t, status: newStatus } : t
-      );
-      setTickets(updatedTickets);
-      localStorage.setItem("admin_tickets", JSON.stringify(updatedTickets));
+      console.error("ステータス更新エラー:", err);
+      // エラー時は再取得
+      fetchTickets();
     }
   };
 
