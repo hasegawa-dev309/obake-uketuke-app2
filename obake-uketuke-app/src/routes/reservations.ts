@@ -323,8 +323,13 @@ router.delete("/all", requireAdmin, async (req, res) => {
       });
     }
     
-    // データを削除
-    await pool.query("DELETE FROM reservations WHERE id > 0");
+    // データを削除（複数の方法を試す）
+    try {
+      await pool.query("DELETE FROM reservations WHERE id > 0");
+    } catch (deleteErr) {
+      console.log("⚠️ 通常のDELETE失敗、TRUNCATE試行");
+      await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
+    }
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
