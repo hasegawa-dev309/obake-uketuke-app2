@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resetCounter, deleteAllReservations } from '../../lib/api';
+import { resetCounter, deleteAllReservations, clearAllReservations } from '../../lib/api';
 
 export function SettingsPage() {
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,14 @@ export function SettingsPage() {
     while (retryCount < maxRetries) {
       try {
         console.log(`データクリア試行 ${retryCount + 1}/${maxRetries}`);
-        const result = await deleteAllReservations();
+        // まずDELETEメソッドを試す
+        let result = await deleteAllReservations();
+        
+        // DELETEが失敗した場合はPOSTメソッドを試す
+        if (!result.ok && retryCount > 0) {
+          console.log("DELETE失敗、POSTメソッドを試行");
+          result = await clearAllReservations();
+        }
         
         if (result.ok) {
           alert(result.message || "データをクリアしました");

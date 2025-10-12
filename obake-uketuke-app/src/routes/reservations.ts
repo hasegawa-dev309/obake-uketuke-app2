@@ -386,4 +386,52 @@ router.delete("/all", requireAdmin, async (req, res) => {
   }
 });
 
+// 別のアプローチ: POSTメソッドでデータクリア
+router.post("/clear-all", requireAdmin, async (req, res) => {
+  try {
+    console.log("🗑️ [POST /clear-all] データ削除開始");
+    
+    // 件数を取得
+    const countResult = await pool.query("SELECT COUNT(*) as count FROM reservations");
+    const totalCount = parseInt(countResult.rows[0].count);
+    
+    if (totalCount === 0) {
+      currentNumber = 1;
+      systemPaused = false;
+      return res.json({ 
+        ok: true, 
+        message: "データは既に空です",
+        data: { deletedCount: 0, currentNumber: 1 } 
+      });
+    }
+    
+    // 最もシンプルな削除
+    await pool.query("DELETE FROM reservations");
+    
+    // メモリ内のカウンターもリセット
+    currentNumber = 1;
+    systemPaused = false;
+    
+    console.log(`✅ [POST /clear-all] ${totalCount}件削除完了`);
+    
+    return res.json({ 
+      ok: true, 
+      message: `${totalCount}件のデータを削除しました`,
+      data: { deletedCount: totalCount, currentNumber: 1 } 
+    });
+  } catch (err) {
+    console.error("❌ [POST /clear-all] エラー:", err);
+    
+    // エラーが発生してもメモリ内のカウンターはリセット
+    currentNumber = 1;
+    systemPaused = false;
+    
+    return res.status(500).json({ 
+      ok: false, 
+      error: "削除に失敗しました",
+      message: "データベースエラーが発生しました。" 
+    });
+  }
+});
+
 export default router;

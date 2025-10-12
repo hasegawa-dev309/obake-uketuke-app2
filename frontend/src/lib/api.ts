@@ -126,3 +126,11 @@ export async function deleteAllReservations() {
   return res.json();
 }
 
+// 代替手段: POSTメソッドでデータクリア
+export async function clearAllReservations() {
+  const res = await authenticatedFetch('/reservations/clear-all', {
+    method: 'POST'
+  });
+  return res.json();
+}
+
