@@ -314,7 +314,9 @@ router.delete("/all", requireAdmin, async (req, res) => {
     }
     
     // すべての予約データを削除
-    const result = await pool.query("DELETE FROM reservations WHERE 1=1");
+    console.log("🗑️ [DELETE /all] クエリ実行開始");
+    const result = await pool.query("DELETE FROM reservations");
+    console.log("🗑️ [DELETE /all] クエリ実行完了", result);
     const deletedCount = result.rowCount || 0;
     
     // メモリ内のカウンターもリセット
