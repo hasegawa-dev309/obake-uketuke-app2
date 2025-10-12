@@ -309,28 +309,36 @@ router.delete("/all", requireAdmin, async (req, res) => {
     console.log("🗑️ [DELETE /all] すべてのデータ削除開始");
     
     if (!pool) {
+      console.error("❌ [DELETE /all] poolが未設定");
       return res.status(500).json({ ok: false, error: "db_not_configured" });
     }
     
-    // すべての予約データを削除（TRUNCATEを使用）
-    await pool.query("TRUNCATE TABLE reservations RESTART IDENTITY");
+    // すべての予約データを削除
+    const result = await pool.query("DELETE FROM reservations WHERE 1=1");
+    const deletedCount = result.rowCount || 0;
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /all] 全データを削除、カウンターをリセット`);
+    console.log(`✅ [DELETE /all] ${deletedCount}件のデータを削除、カウンターをリセット`);
     
     return res.json({ 
       ok: true, 
-      message: "すべてのデータを削除しました",
-      data: { currentNumber: 1 } 
+      message: `${deletedCount}件のデータを削除しました`,
+      data: { deletedCount, currentNumber: 1 } 
     });
   } catch (err) {
     console.error("❌ [DELETE /all] DBエラー:", err);
-    const errorMessage = err instanceof Error ? err.message : "unknown error";
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : "";
     console.error("❌ [DELETE /all] エラー詳細:", errorMessage);
-    return res.status(500).json({ ok: false, error: "db_error", details: errorMessage });
+    console.error("❌ [DELETE /all] スタック:", errorStack);
+    return res.status(500).json({ 
+      ok: false, 
+      error: "db_error", 
+      message: errorMessage 
+    });
   }
 });
 
