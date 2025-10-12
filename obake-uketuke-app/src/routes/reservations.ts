@@ -324,27 +324,33 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
 });
 
 // POSTメソッドでの削除（Vercel対応）
-router.post("/clear-all", requireAdmin, async (req, res) => {
-  // DELETEメソッドのシミュレーション
-  if (req.body._method === "DELETE") {
+router.post("/clear-all", async (req, res) => {
+  try {
+    const method = (req.body?._method || "").toUpperCase();
+    if (method !== "DELETE") {
+      return res.status(400).json({ ok: false, error: "invalid_method" });
+    }
+
     const client = await pool.connect();
     
     try {
-      await client.query("DELETE FROM reservations");
-      await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
+      await client.query("BEGIN");
+      await client.query("TRUNCATE TABLE reservations RESTART IDENTITY");
+      await client.query("COMMIT");
       
       // メモリ内のカウンターもリセット
       currentNumber = 1;
       systemPaused = false;
       
-      res.json({ ok: true, message: "cleared" });
+      res.json({ ok: true });
     } catch (err) {
-      res.json({ ok: false, message: "failed" });
+      await client.query("ROLLBACK");
+      res.json({ ok: false, error: "db_error" });
     } finally {
       client.release();
     }
-  } else {
-    res.json({ ok: false, message: "invalid method" });
+  } catch (e) {
+    res.json({ ok: false, error: "server_error" });
   }
 });
 

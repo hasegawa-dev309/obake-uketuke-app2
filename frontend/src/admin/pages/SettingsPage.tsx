@@ -24,11 +24,11 @@ export function SettingsPage() {
         // 少し待ってからリロード
         setTimeout(() => window.location.reload(), 500);
       } else {
-        alert("❌ サーバーに接続できません。もう一度お試しください");
+        alert("❌ クリアに失敗しました（proxy）。もう一度お試しください。");
       }
     } catch (err) {
       console.error("データクリアエラー:", err);
-      alert("❌ サーバーに接続できません。もう一度お試しください");
+      alert("❌ ネットワークエラー: " + (err as Error).message);
     } finally {
       setLoading(false);
     }

@@ -118,11 +118,15 @@ export async function resetCounter() {
   return res.json();
 }
 
-// すべてのデータをクリア（管理API）
+// すべてのデータをクリア（プロキシ経由）
 export async function deleteAllReservations() {
-  const res = await authenticatedFetch('/reservations/clear-all', {
-    method: 'POST',
-    body: JSON.stringify({ _method: "DELETE" })
+  const res = await fetch("/api/admin-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-password": "obake2025",
+    },
+    body: JSON.stringify({ action: "clear_all" }),
   });
   return res.json();
 }
