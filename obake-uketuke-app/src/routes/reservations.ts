@@ -303,26 +303,6 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
   }
 });
 
-// すべてのデータをクリア（管理者のみ）- シンプル版
-router.delete("/clear-all", requireAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
-  try {
-    await client.query("DELETE FROM reservations");
-    await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
-    
-    // メモリ内のカウンターもリセット
-    currentNumber = 1;
-    systemPaused = false;
-    
-    res.json({ ok: true, message: "cleared" });
-  } catch (err) {
-    res.json({ ok: false, message: "failed" });
-  } finally {
-    client.release();
-  }
-});
-
 /** 予約全消去＆IDリセット（POST統一・安全なSQL） */
 router.post("/clear-all", requireAdmin, async (req, res) => {
   console.log("[POST /clear-all] リクエスト受信");
