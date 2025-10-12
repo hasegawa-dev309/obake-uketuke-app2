@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db";
-import { requireAdmin, AuthRequest } from "../middleware/auth";
+import { requireAdmin } from "../middleware/auth";
 import { validateReservation, validateStatus } from "../middleware/validation";
 
 const router = express.Router();
@@ -268,47 +268,47 @@ router.get("/counter", async (_req, res) => {
   }
 });
 
-// 呼び出し番号をリセット（管理者専用）
-router.post('/reset-number', requireAdmin, async (req: AuthRequest, res) => {
+// 呼び出し番号リセットAPI（管理者のみ）
+router.post("/reset-counter", requireAdmin, (_req, res) => {
   try {
-    console.log("🔄 [POST /reset-number] 呼び出し番号をリセット");
-    
-    // メモリ内の呼び出し番号をリセット
     currentNumber = 1;
     systemPaused = false;
-    
-    console.log("✅ [POST /reset-number] リセット完了: currentNumber=1, systemPaused=false");
+    console.log("🔄 [POST /reset-counter] 呼び出し番号をリセット: 1");
     
     return res.json({ 
       ok: true, 
-      message: '呼び出し番号をリセットしました',
-      data: { currentNumber: 1, systemPaused: false }
+      message: "呼び出し番号をリセットしました",
+      data: { currentNumber, systemPaused } 
     });
   } catch (err) {
-    console.error("❌ [POST /reset-number] エラー:", err);
+    console.error("❌ [POST /reset-counter] エラー:", err);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// すべてのデータをクリア（当日分のみ削除、管理者専用）
-router.delete('/clear-all', requireAdmin, async (req: AuthRequest, res) => {
+// すべてのデータをクリアAPI（管理者のみ）
+router.delete("/clear-all", requireAdmin, async (_req, res) => {
   try {
-    console.log("🗑️ [DELETE /clear-all] 当日のすべてのデータを削除");
+    console.log("🗑️ [DELETE /clear-all] すべてのデータをクリア開始");
     
-    const result = await pool.query(
-      `DELETE FROM reservations WHERE DATE(created_at) = CURRENT_DATE RETURNING id`
-    );
+    // すべての予約データを削除
+    const result = await pool.query(`
+      DELETE FROM reservations
+      RETURNING id
+    `);
+    
+    const deletedCount = result.rowCount || 0;
     
     // 呼び出し番号もリセット
     currentNumber = 1;
     systemPaused = false;
     
-    console.log(`✅ [DELETE /clear-all] ${result.rowCount}件のデータを削除しました`);
+    console.log(`✅ [DELETE /clear-all] ${deletedCount}件のデータを削除、番号をリセット`);
     
     return res.json({ 
       ok: true, 
-      message: `${result.rowCount}件のデータをクリアしました`,
-      data: { deletedCount: result.rowCount }
+      message: `${deletedCount}件のデータを削除しました`,
+      data: { deletedCount, currentNumber, systemPaused }
     });
   } catch (err) {
     console.error("❌ [DELETE /clear-all] DBエラー:", err);

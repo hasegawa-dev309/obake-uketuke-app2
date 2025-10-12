@@ -104,9 +104,9 @@ export async function updateCurrentNumber(currentNumber: number, systemPaused: b
   return res.json();
 }
 
-// 呼び出し番号をリセット（管理API）
-export async function resetCallNumber() {
-  const res = await authenticatedFetch('/reservations/reset-number', {
+// 呼び出し番号リセット（管理API）
+export async function resetCounter() {
+  const res = await authenticatedFetch('/reservations/reset-counter', {
     method: 'POST'
   });
   return res.json();
