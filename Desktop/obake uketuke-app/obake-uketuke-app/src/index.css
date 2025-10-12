@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ここから下はあなたの追記（保険CSSなど） */
+:root{
+  --brand:#2563eb;
+  --surface-bg:#f8fafc;
+  --surface-muted:#e2e8f0;
+  --text:#0f172a;
+  --radius:8px;
+  --shadow:0 4px 16px rgba(2,6,23,.06);
+}
+body{ font-family: Inter,"Noto Sans JP",system-ui,sans-serif; background:var(--surface-bg); color:var(--text); }
+input[type], input:not([type]), select, textarea{
+  height:40px; width:100%; border:1px solid var(--surface-muted); border-radius:var(--radius);
+  background:#fff; padding:0 12px; outline:none;
+}
+textarea{ height:auto; padding:12px; }
+input:focus, select:focus, textarea:focus{ box-shadow:0 0 0 3px rgba(37,99,235,.35); border-color:var(--brand); }
+button[data-primary]{ height:40px; border-radius:var(--radius); padding:0 16px; background:var(--brand); color:#fff; font-weight:600; box-shadow:var(--shadow); }
+button[data-primary]:hover{ opacity:.9; }
+button[disabled]{ opacity:.6; }
+main, form{ max-width:768px; margin:0 auto; padding:0 16px 96px; }
+a[data-primary]{
+  height:40px; border-radius:var(--radius); padding:0 16px;
+  background:var(--brand); color:#fff; font-weight:600; box-shadow:var(--shadow);
+  display:inline-flex; align-items:center; justify-content:center; text-decoration:none;
+}
+a[data-primary]:hover{ opacity:.9; }
