@@ -10,28 +10,46 @@ export function SettingsPage() {
     }
     
     setLoading(true);
-    try {
-      const result = await deleteAllReservations();
-      
-      if (result.ok) {
-        alert(result.message || "データをクリアしました");
-        // LocalStorageもクリーンアップ（互換性のため）
-        localStorage.removeItem("admin_tickets");
-        localStorage.removeItem("obake_tickets_v1");
-        localStorage.removeItem("lastTicketNumber");
-        localStorage.removeItem("current_number");
-        localStorage.removeItem("ticket_counter");
-        // 少し待ってからリロード
-        setTimeout(() => window.location.reload(), 500);
-      } else {
-        alert(`エラー: ${result.message || result.error || "データクリアに失敗しました"}`);
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`データクリア試行 ${retryCount + 1}/${maxRetries}`);
+        const result = await deleteAllReservations();
+        
+        if (result.ok) {
+          alert(result.message || "データをクリアしました");
+          // LocalStorageもクリーンアップ（互換性のため）
+          localStorage.removeItem("admin_tickets");
+          localStorage.removeItem("obake_tickets_v1");
+          localStorage.removeItem("lastTicketNumber");
+          localStorage.removeItem("current_number");
+          localStorage.removeItem("ticket_counter");
+          // 少し待ってからリロード
+          setTimeout(() => window.location.reload(), 500);
+          return; // 成功したら終了
+        } else {
+          console.log(`試行 ${retryCount + 1} 失敗:`, result.error || result.message);
+          if (retryCount === maxRetries - 1) {
+            alert(`エラー: ${result.message || result.error || "データクリアに失敗しました"}`);
+          }
+        }
+      } catch (err) {
+        console.error(`データクリアエラー (試行 ${retryCount + 1}):`, err);
+        if (retryCount === maxRetries - 1) {
+          alert("データクリアに失敗しました。しばらく時間をおいてから再度お試しください。");
+        }
       }
-    } catch (err) {
-      console.error("データクリアエラー:", err);
-      alert("データクリアに失敗しました。しばらく時間をおいてから再度お試しください。");
-    } finally {
-      setLoading(false);
+      
+      retryCount++;
+      if (retryCount < maxRetries) {
+        // リトライ前に少し待機
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
+    
+    setLoading(false);
   };
 
   const handleResetCallNumber = async () => {
