@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { Ghost, Ticket, UserList, PlusCircle, Gear } from "phosphor-react";
 
 export default function AdminLayout() {
   return (
@@ -6,7 +7,9 @@ export default function AdminLayout() {
       <aside className="w-64 border-r bg-white">
         <div className="p-4 border-b">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">👻</span>
+            <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+              <Ghost size={20} weight="fill" />
+            </div>
             <div>
               <div className="font-bold text-lg">お化け屋敷</div>
               <div className="text-xs text-slate-500">整理券システム</div>
@@ -22,7 +25,7 @@ export default function AdminLayout() {
               isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
             }`}
           >
-            <span className="text-lg">🎫</span>
+            <Ticket size={20} weight="bold" />
             <span>整理券管理</span>
           </NavLink>
           
@@ -32,7 +35,7 @@ export default function AdminLayout() {
               isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
             }`}
           >
-            <span className="text-lg">👤</span>
+            <UserList size={20} weight="bold" />
             <span>呼び出し管理</span>
           </NavLink>
           
@@ -42,7 +45,7 @@ export default function AdminLayout() {
               isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
             }`}
           >
-            <span className="text-lg">➕</span>
+            <PlusCircle size={20} weight="bold" />
             <span>整理券発行</span>
           </NavLink>
           
@@ -52,7 +55,7 @@ export default function AdminLayout() {
               isActive ? "bg-violet-100 text-violet-700" : "hover:bg-gray-100"
             }`}
           >
-            <span className="text-lg">⚙️</span>
+            <Gear size={20} weight="bold" />
             <span>設定</span>
           </NavLink>
         </nav>

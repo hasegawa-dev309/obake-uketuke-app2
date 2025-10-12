@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowClockwise, Envelope, EnvelopeOpen } from "phosphor-react";
 
 type Ticket = { 
   id: string; 
@@ -85,7 +86,7 @@ export default function CallPage(){
           className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center gap-2"
           title="データを再読み込み"
         >
-          <span>🔄</span>
+          <ArrowClockwise size={18} weight="bold" />
           リロード
         </button>
       </div>
@@ -148,7 +149,7 @@ export default function CallPage(){
           className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           onClick={sendEmailToCurrentNumber}
         >
-          <span>📧</span>
+          <Envelope size={20} weight="bold" />
           現在の番号にメール送信
         </button>
         
@@ -156,7 +157,7 @@ export default function CallPage(){
           className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           onClick={sendEmailToUpcomingNumbers}
         >
-          <span>📬</span>
+          <EnvelopeOpen size={20} weight="bold" />
           次の5組にメール送信
         </button>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { Plus } from 'phosphor-react';
 
 type Age = "一般" | "大学生" | "高校生以下";
 
@@ -145,7 +145,7 @@ export function IssuePage() {
             </span>
           ) : (
             <span className="flex items-center justify-center gap-2">
-              <PlusIcon className="w-5 h-5" />
+              <Plus size={20} weight="bold" />
               整理券を発行する
             </span>
           )}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock } from "phosphor-react";
 
 type Ticket = { 
   id: string; 
@@ -114,17 +115,18 @@ export default function TicketsPage(){
             className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center gap-2"
             title="データを再読み込み"
           >
-            <span>🔄</span>
+            <ArrowClockwise size={18} weight="bold" />
             リロード
           </button>
           <button 
             onClick={exportToCSV}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2"
           >
+            <Download size={18} weight="bold" />
             エクスポート
           </button>
           <button className="px-4 py-2 bg-gray-500 text-white rounded-lg flex items-center gap-2">
-            <span>👤</span>
+            <UserCircle size={18} weight="bold" />
             管理者
           </button>
         </div>
@@ -135,21 +137,21 @@ export default function TicketsPage(){
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-center justify-between">
             <div className="text-slate-600">未呼出</div>
-            <div className="text-slate-400">🎫</div>
+            <TicketIcon size={24} weight="fill" className="text-slate-400" />
           </div>
           <div className="mt-3 text-3xl font-bold">{getStatusCount("未呼出")}</div>
         </div>
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-center justify-between">
             <div className="text-slate-600">来場済</div>
-            <div className="text-slate-400">👤</div>
+            <CheckCircle size={24} weight="fill" className="text-slate-400" />
           </div>
           <div className="mt-3 text-3xl font-bold">{getStatusCount("来場済")}</div>
         </div>
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-center justify-between">
             <div className="text-slate-600">未確認</div>
-            <div className="text-slate-400">🕐</div>
+            <Clock size={24} weight="fill" className="text-slate-400" />
           </div>
           <div className="mt-3 text-3xl font-bold">{getStatusCount("未確認")}</div>
         </div>
@@ -187,8 +189,9 @@ export default function TicketsPage(){
           />
           <button 
             onClick={exportToCSV}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg"
+            className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center gap-2"
           >
+            <Download size={18} weight="bold" />
             エクスポート (CSV)
           </button>
         </div>
