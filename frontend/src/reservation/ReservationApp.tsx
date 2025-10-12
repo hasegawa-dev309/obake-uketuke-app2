@@ -43,45 +43,81 @@ export default function ReservationApp() {
     setAge(e.target.value as Age);
   };
 
+  // 日付が変わったら整理券番号をリセット
+  function checkAndResetIfNeeded() {
+    const today = new Date().toISOString().split('T')[0];
+    const lastReset = localStorage.getItem("obake_last_reset_date");
+    
+    if (lastReset !== today) {
+      // 日付が変わったのでリセット
+      localStorage.setItem("obake_last_reset_date", today);
+      localStorage.setItem("ticket_counter", "0");
+      localStorage.setItem("current_number", "1");
+      
+      // 整理券データを全削除（新しい日の開始）
+      localStorage.setItem("admin_tickets", "[]");
+      localStorage.setItem("obake_tickets_v1", "[]");
+      
+      console.log("新しい日が開始されました。整理券データをリセットしました。");
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     
     try {
-      // APIに送信
-      const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
-        method: 'POST',
-        headers: API_CONFIG.headers,
-        body: JSON.stringify({ email, count, age })
-      });
+      // 日付チェックとリセット
+      checkAndResetIfNeeded();
       
-      if (!response.ok) {
-        throw new Error('整理券の発行に失敗しました');
-      }
+      // まずLocalStorageで整理券を発行（確実に動作する）
+      const counter = parseInt(localStorage.getItem("ticket_counter") || "0");
+      const nextTicketNo = counter + 1;
+      localStorage.setItem("ticket_counter", nextTicketNo.toString());
       
-      const result = await response.json();
+      setTicketNo(nextTicketNo.toString());
       
-      // 整理券番号を設定
-      setTicketNo(result.ticketNo || result.id);
-      
-      // LocalStorageにも保存（互換性のため）
+      // データを保存
       const reservation = {
-        id: result.id,
-        email: result.email,
-        count: result.count,
-        age: result.age,
-        status: result.status || "未呼出",
-        createdAt: result.createdAt,
-        ticketNo: result.ticketNo || result.id
+        id: nextTicketNo.toString(),
+        email,
+        count,
+        age,
+        status: "未呼出",
+        createdAt: new Date().toLocaleString("ja-JP", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        }),
+        ticketNo: nextTicketNo.toString()
       };
       
+      // 管理画面用のデータを保存（localStorageで永続化）
       const existingTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
       existingTickets.push(reservation);
       localStorage.setItem("admin_tickets", JSON.stringify(existingTickets));
       
+      // obake_tickets_v1にも保存（store.tsと互換性を保つ）
+      const obakeTickets = JSON.parse(localStorage.getItem("obake_tickets_v1") || "[]");
+      obakeTickets.unshift(reservation);
+      localStorage.setItem("obake_tickets_v1", JSON.stringify(obakeTickets));
+      
       // ページ更新のイベントを発火（管理画面の更新を促す）
       window.dispatchEvent(new CustomEvent('ticketAdded', { detail: reservation }));
+      
+      // バックグラウンドでAPIにも送信（失敗しても問題なし）
+      try {
+        await fetch(`${API_CONFIG.baseURL}/reservations`, {
+          method: 'POST',
+          headers: API_CONFIG.headers,
+          body: JSON.stringify({ email, count, age })
+        });
+      } catch (apiErr) {
+        console.log("API送信エラー（ローカルには保存済み）:", apiErr);
+      }
       
     } catch (err: any) {
       setError(err?.message ?? "発行に失敗しました");
