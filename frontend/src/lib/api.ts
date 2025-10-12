@@ -123,7 +123,7 @@ export async function deleteAllReservations() {
   try {
     console.log("[deleteAllReservations] リクエスト送信開始");
     const token = localStorage.getItem("admin_token") || "";
-    const res = await fetch(`${API_BASE_URL}/reservations/clear-all`, {
+    const res = await fetch(`${API}/reservations/clear-all`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
