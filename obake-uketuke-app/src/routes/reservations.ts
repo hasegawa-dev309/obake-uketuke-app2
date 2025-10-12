@@ -323,36 +323,33 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
   }
 });
 
-// POSTメソッドでの削除（Vercel対応・認証不要）
-router.post("/clear-all", async (req, res) => {
-  console.log("[POST /clear-all] リクエスト受信:", req.body);
+/** 予約全消去＆IDリセット（POST統一・安全なSQL） */
+router.post("/clear-all", requireAdmin, async (req, res) => {
+  console.log("[POST /clear-all] リクエスト受信");
   
   try {
-    const method = (req.body?._method || "").toUpperCase();
-    if (method !== "DELETE") {
-      console.log("[POST /clear-all] 無効なメソッド:", method);
-      return res.status(400).json({ ok: false, error: "invalid_method" });
-    }
-
-    console.log("[POST /clear-all] DELETE実行開始");
+    await pool.query('BEGIN');
+    // TRUNCATE は速く安全。RESTART IDENTITY で id を 1 に戻す。CASCADE で外部参照があっても整合を保つ。
+    await pool.query('TRUNCATE TABLE reservations RESTART IDENTITY CASCADE');
+    await pool.query('COMMIT');
     
-    // シンプルなDELETEクエリを使用
-    const result = await pool.query("DELETE FROM reservations");
-    console.log("[POST /clear-all] 削除成功:", result.rowCount, "件");
-    
-    // シーケンスをリセット
-    await pool.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
-    console.log("[POST /clear-all] シーケンスリセット成功");
+    console.log("[POST /clear-all] 削除成功");
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    res.json({ ok: true, deletedCount: result.rowCount });
-  } catch (err: any) {
-    console.error("[POST /clear-all] エラー:", err.message, err.stack);
-    res.json({ ok: false, error: "db_error", detail: err.message });
+    return res.json({ ok: true, deleted: 'ALL' });
+  } catch (e: any) {
+    await pool.query('ROLLBACK');
+    console.error('[POST /clear-all] エラー:', e?.message);
+    return res.status(500).json({ ok: false, error: 'db_error', detail: e?.message });
   }
+});
+
+/** 互換: 旧 DELETE を非推奨化 */
+router.delete("/all", requireAdmin, async (_req, res) => {
+  res.status(410).json({ ok: false, error: 'deprecated_use_POST_/api/reservations/clear-all' });
 });
 
 export default router;

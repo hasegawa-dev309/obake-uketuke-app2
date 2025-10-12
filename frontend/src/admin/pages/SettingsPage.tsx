@@ -5,35 +5,41 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(false);
 
   const handleClearData = async () => {
-    if (!confirm("すべての整理券データをクリアしますか？この操作は取り消せません。")) {
+    if (!confirm('すべてのデータを削除します。よろしいですか？（取り消し不可）')) {
       return;
     }
     
     setLoading(true);
     try {
-      console.log("[handleClearData] 削除処理開始");
-      const result = await deleteAllReservations();
-      console.log("[handleClearData] 削除結果:", result);
-      
-      if (result.ok) {
-        const count = result.deletedCount || 0;
-        alert(`✅ すべてのデータを削除しました（${count}件）`);
-        // LocalStorageもクリーンアップ（互換性のため）
-        localStorage.removeItem("admin_tickets");
-        localStorage.removeItem("obake_tickets_v1");
-        localStorage.removeItem("lastTicketNumber");
-        localStorage.removeItem("current_number");
-        localStorage.removeItem("ticket_counter");
-        // 少し待ってからリロード
-        setTimeout(() => window.location.reload(), 500);
-      } else {
-        const errorMsg = result.detail || result.error || "不明なエラー";
-        alert(`❌ クリアに失敗しました: ${errorMsg}`);
-        console.error("[handleClearData] エラー詳細:", result);
+      const token = localStorage.getItem('admin_token');
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/reservations/clear-all`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const json = await resp.json();
+
+      if (!resp.ok || !json?.ok) {
+        const msg = json?.error || `HTTP ${resp.status}`;
+        alert(`エラー: ${msg}`);
+        return;
       }
-    } catch (err) {
-      console.error("[handleClearData] 予期しないエラー:", err);
-      alert("❌ ネットワークエラー: " + (err as Error).message);
+      
+      alert('すべてのデータを削除しました。');
+      // 画面状態のキャッシュもクリア
+      localStorage.removeItem('admin_tickets');
+      localStorage.removeItem('admin_stats');
+      localStorage.removeItem('lastTicketNumber');
+      localStorage.removeItem('currentNumber');
+      localStorage.removeItem('obake_tickets_v1');
+      localStorage.removeItem('current_number');
+      localStorage.removeItem('ticket_counter');
+      // 再読込み
+      setTimeout(() => window.location.reload(), 300);
+    } catch (e: any) {
+      alert(`エラー: ${e?.message ?? 'unknown'}`);
     } finally {
       setLoading(false);
     }
