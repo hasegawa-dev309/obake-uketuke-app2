@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
-import { authenticatedFetch } from "../../lib/api";
+import { fetchReservations, updateReservationStatus } from "../../lib/api";
 
 type Ticket = { 
   id: string; 
@@ -20,40 +20,32 @@ export default function TicketsPage(){
   const [channelFilter, setChannelFilter] = useState("すべて");
 
   // APIから整理券データを取得（認証付き）
-  const fetchTickets = async () => {
+  const loadTickets = async () => {
     try {
-      const response = await authenticatedFetch('/reservations');
+      const result = await fetchReservations();
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log("整理券データを取得しました:", data.length + "件");
-        setTickets(data);
+      if (result.ok && result.data) {
+        console.log("✅ 整理券データ取得成功:", result.data.length + "件");
+        setTickets(result.data);
       } else {
-        console.error("整理券データの取得に失敗:", response.status);
+        console.error("⚠️ 整理券データの取得に失敗:", result);
         setTickets([]);
       }
     } catch (err) {
-      console.error("整理券データの取得エラー:", err);
+      console.error("❌ 整理券データ取得エラー:", err);
       setTickets([]);
     }
   };
 
   useEffect(() => {
     // 初回読み込み
-    fetchTickets();
+    loadTickets();
     
     // 定期的に更新（3秒ごと）
-    const interval = setInterval(fetchTickets, 3000);
-    
-    // カスタムイベントリスナー（予約フォームからの通知）
-    const handleTicketAdded = () => {
-      setTimeout(fetchTickets, 500); // 0.5秒後に取得
-    };
-    window.addEventListener('ticketAdded', handleTicketAdded);
+    const interval = setInterval(loadTickets, 3000);
     
     return () => {
       clearInterval(interval);
-      window.removeEventListener('ticketAdded', handleTicketAdded);
     };
   }, []);
 
@@ -84,25 +76,22 @@ export default function TicketsPage(){
       );
       setTickets(updatedTickets);
       
-      // APIでステータスを更新（認証付き）
-      const response = await authenticatedFetch(`/reservations/${id}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus })
-      });
+      // APIでステータスを更新
+      const result = await updateReservationStatus(id, newStatus);
       
-      if (response.ok) {
-        console.log("ステータスを更新しました");
+      if (result.ok) {
+        console.log("✅ ステータス更新成功");
         // 成功したら再取得して確実に同期
-        setTimeout(fetchTickets, 500);
+        setTimeout(loadTickets, 500);
       } else {
-        console.error("ステータス更新に失敗:", response.status);
+        console.error("⚠️ ステータス更新失敗:", result);
         // エラー時は元に戻す
-        fetchTickets();
+        loadTickets();
       }
     } catch (err) {
-      console.error("ステータス更新エラー:", err);
+      console.error("❌ ステータス更新エラー:", err);
       // エラー時は再取得
-      fetchTickets();
+      loadTickets();
     }
   };
 

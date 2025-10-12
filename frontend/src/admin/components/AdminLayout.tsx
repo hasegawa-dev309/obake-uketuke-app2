@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { Ghost, Ticket, UserList, PlusCircle, Gear, Hash } from "phosphor-react";
 import { useEffect, useState } from "react";
-import { authenticatedFetch } from "../../lib/api";
+import { getCurrentNumber } from "../../lib/api";
 
 export default function AdminLayout() {
   const [currentTicket, setCurrentTicket] = useState<number>(1);
@@ -10,14 +10,13 @@ export default function AdminLayout() {
     // APIから現在の呼び出し番号を取得（認証付き）
     const updateCurrentTicket = async () => {
       try {
-        const response = await authenticatedFetch('/reservations/current-number');
+        const result = await getCurrentNumber();
         
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentTicket(data.currentNumber || 1);
+        if (result.ok && result.data) {
+          setCurrentTicket(result.data.currentNumber || 1);
         }
       } catch (err) {
-        console.error("現在の番号取得エラー:", err);
+        console.error("❌ 現在の番号取得エラー:", err);
       }
     };
     

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus } from 'phosphor-react';
-import { API_CONFIG } from '../../config/api.config';
+import { postReservation } from '../../lib/api';
 
 type Age = "一般" | "大学生" | "高校生以下";
 
@@ -21,39 +21,25 @@ export function IssuePage() {
       // 管理画面からの発行はchannelを'admin'とする
       const channel = 'admin';
       
-      // APIに送信（認証トークン付き）
-      const token = localStorage.getItem('admin_token');
-      const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
-        method: 'POST',
-        headers: {
-          ...API_CONFIG.headers,
-          'Authorization': `Bearer ${token}`
-        },
-        mode: 'cors',
-        body: JSON.stringify({ 
-          email, 
-          count, 
-          age,
-          channel
-        })
-      });
+      console.log(`📤 管理画面から発行: email=${email}, channel=${channel}`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API送信エラー:", response.status, errorText);
-        throw new Error(`整理券の発行に失敗しました（エラー: ${response.status}）`);
+      // APIヘルパーを使用して送信
+      const result = await postReservation({ email, count, age, channel });
+      
+      if (!result.ok) {
+        console.error("⚠️ API送信エラー:", result);
+        throw new Error(result.error || '整理券の発行に失敗しました');
       }
       
-      const result = await response.json();
-      console.log("整理券を発行しました:", result);
+      console.log("✅ 整理券発行成功:", result.data);
       
       // 整理券番号を設定
-      const ticketNumber = result.ticketNo || result.id;
+      const ticketNumber = result.data.ticketNo || result.data.id;
       setTicketNo(ticketNumber);
       
-    } catch (err) {
-      console.error("予約エラー:", err);
-      setError("整理券の発行に失敗しました。もう一度お試しください。");
+    } catch (err: any) {
+      console.error("❌ 予約エラー:", err);
+      setError(err?.message ?? "整理券の発行に失敗しました。もう一度お試しください。");
     } finally {
       setSubmitting(false);
     }

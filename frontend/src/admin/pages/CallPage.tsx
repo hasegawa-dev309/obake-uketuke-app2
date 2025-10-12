@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
-import { authenticatedFetch } from "../../lib/api";
+import { fetchReservations, getCurrentNumber, updateCurrentNumber } from "../../lib/api";
 
 type Ticket = { 
   id: string; 
@@ -19,22 +19,21 @@ export default function CallPage(){
 
   // APIから現在の番号とシステム状態を取得（認証付き）
   useEffect(() => {
-    const fetchCurrentNumber = async () => {
+    const loadCurrentNumber = async () => {
       try {
-        const response = await authenticatedFetch('/reservations/current-number');
+        const result = await getCurrentNumber();
         
-        if (response.ok) {
-          const data = await response.json();
-          setCurrent(data.currentNumber || 1);
-          setPaused(data.systemPaused || false);
+        if (result.ok && result.data) {
+          setCurrent(result.data.currentNumber || 1);
+          setPaused(result.data.systemPaused || false);
         }
       } catch (err) {
-        console.error("現在の番号取得エラー:", err);
+        console.error("❌ 現在の番号取得エラー:", err);
       }
     };
     
-    fetchCurrentNumber();
-    const interval = setInterval(fetchCurrentNumber, 3000);
+    loadCurrentNumber();
+    const interval = setInterval(loadCurrentNumber, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -42,12 +41,9 @@ export default function CallPage(){
   useEffect(() => {
     const saveCurrentNumber = async () => {
       try {
-        await authenticatedFetch('/reservations/current-number', {
-          method: 'PUT',
-          body: JSON.stringify({ currentNumber: current, systemPaused: paused })
-        });
+        await updateCurrentNumber(current, paused);
       } catch (err) {
-        console.error("現在の番号保存エラー:", err);
+        console.error("❌ 現在の番号保存エラー:", err);
       }
     };
     
@@ -56,21 +52,20 @@ export default function CallPage(){
 
   // 整理券データをAPIから取得（認証付き）
   useEffect(() => {
-    const fetchTickets = async () => {
+    const loadTickets = async () => {
       try {
-        const response = await authenticatedFetch('/reservations');
+        const result = await fetchReservations();
         
-        if (response.ok) {
-          const data = await response.json();
-          setTickets(data);
+        if (result.ok && result.data) {
+          setTickets(result.data);
         }
       } catch (err) {
-        console.error("整理券データ取得エラー:", err);
+        console.error("❌ 整理券データ取得エラー:", err);
       }
     };
     
-    fetchTickets();
-    const interval = setInterval(fetchTickets, 3000);
+    loadTickets();
+    const interval = setInterval(loadTickets, 3000);
     return () => clearInterval(interval);
   }, []);
 
