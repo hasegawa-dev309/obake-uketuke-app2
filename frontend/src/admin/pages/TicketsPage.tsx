@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
+import { API_CONFIG } from "../../config/api.config";
 
 type Ticket = { 
   id: string; 
@@ -17,33 +18,40 @@ export default function TicketsPage(){
   const [ageFilter, setAgeFilter] = useState("すべて");
   const [statusFilter, setStatusFilter] = useState("すべて");
 
-  useEffect(() => {
-    // localStorageから予約データを取得
-    const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
-    setTickets(adminTickets);
-  }, []);
-
-  // 予約データの更新を監視
-  useEffect(() => {
-    const handleStorageChange = () => {
+  // APIから整理券データを取得
+  const fetchTickets = async () => {
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/reservations`);
+      if (response.ok) {
+        const data = await response.json();
+        setTickets(data);
+        // LocalStorageにも保存（互換性のため）
+        localStorage.setItem("admin_tickets", JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("整理券データの取得に失敗しました:", err);
+      // エラー時はLocalStorageから取得
       const adminTickets = JSON.parse(localStorage.getItem("admin_tickets") || "[]");
       setTickets(adminTickets);
-    };
+    }
+  };
 
+  useEffect(() => {
+    // 初回読み込み
+    fetchTickets();
+    
+    // 定期的に更新（5秒ごと）
+    const interval = setInterval(fetchTickets, 5000);
+    
     // カスタムイベントリスナー（予約フォームからの通知）
     const handleTicketAdded = () => {
-      handleStorageChange();
+      fetchTickets();
     };
-
-    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('ticketAdded', handleTicketAdded);
-    // 定期的にチェック（予約フォームから直接更新された場合）
-    const interval = setInterval(handleStorageChange, 1000);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('ticketAdded', handleTicketAdded);
       clearInterval(interval);
+      window.removeEventListener('ticketAdded', handleTicketAdded);
     };
   }, []);
 
@@ -61,14 +69,35 @@ export default function TicketsPage(){
     return tickets.filter(t => t.status === status).length;
   };
 
-  const updateStatus = (id: string, newStatus: string) => {
-    const updatedTickets = tickets.map(t => 
-      t.id === id ? { ...t, status: newStatus } : t
-    );
-    setTickets(updatedTickets);
-    
-    // localStorageにも保存
-    localStorage.setItem("admin_tickets", JSON.stringify(updatedTickets));
+  const updateStatus = async (id: string, newStatus: string) => {
+    try {
+      // APIでステータスを更新
+      const response = await fetch(`${API_CONFIG.baseURL}/reservations/${id}/status`, {
+        method: 'PUT',
+        headers: API_CONFIG.headers,
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (response.ok) {
+        // 成功したら再取得
+        fetchTickets();
+      } else {
+        // エラー時はローカル更新
+        const updatedTickets = tickets.map(t => 
+          t.id === id ? { ...t, status: newStatus } : t
+        );
+        setTickets(updatedTickets);
+        localStorage.setItem("admin_tickets", JSON.stringify(updatedTickets));
+      }
+    } catch (err) {
+      console.error("ステータス更新に失敗しました:", err);
+      // エラー時はローカル更新
+      const updatedTickets = tickets.map(t => 
+        t.id === id ? { ...t, status: newStatus } : t
+      );
+      setTickets(updatedTickets);
+      localStorage.setItem("admin_tickets", JSON.stringify(updatedTickets));
+    }
   };
 
   const exportToCSV = () => {

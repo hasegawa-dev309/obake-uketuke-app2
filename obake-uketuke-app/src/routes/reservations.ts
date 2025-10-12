@@ -3,8 +3,34 @@ import { pool } from "../db";
 
 const router = express.Router();
 
+// メモリベースのストレージ（データベースがない場合のフォールバック）
+let memoryTickets: any[] = [];
+let ticketCounter = 0;
+let currentNumber = 1;
+let systemPaused = false;
+let lastResetDate = new Date().toISOString().split('T')[0];
+
+// 日付が変わったらリセット
+function checkAndResetIfNeeded() {
+  const today = new Date().toISOString().split('T')[0];
+  if (lastResetDate !== today) {
+    lastResetDate = today;
+    memoryTickets = [];
+    ticketCounter = 0;
+    currentNumber = 1;
+    console.log('📅 新しい日が開始されました。データをリセットしました。');
+  }
+}
+
 // 整理券一覧取得API
 router.get("/", async (_req, res) => {
+  checkAndResetIfNeeded();
+  
+  // データベースがない場合はメモリから返す
+  if (!process.env.DATABASE_URL) {
+    return res.json(memoryTickets);
+  }
+  
   try {
     const result = await pool.query(`
       SELECT 
@@ -17,12 +43,14 @@ router.get("/", async (_req, res) => {
         created_at,
         called_at
       FROM reservations 
+      WHERE DATE(created_at) = CURRENT_DATE
       ORDER BY created_at DESC
     `);
     res.json(result.rows);
   } catch (err) {
     console.error("DB Error (GET /reservations):", err);
-    res.status(500).json({ error: "Database error" });
+    // データベースエラーの場合はメモリから返す
+    res.json(memoryTickets);
   }
 });
 
@@ -30,16 +58,40 @@ router.get("/", async (_req, res) => {
 router.post("/", async (req, res) => {
   const { email, count, age } = req.body;
   
+  checkAndResetIfNeeded();
+  
   // バリデーション
   if (!email || !count || !age) {
     return res.status(400).json({ error: 'Missing required fields: email, count, age' });
+  }
+  
+  // データベースがない場合はメモリに保存
+  if (!process.env.DATABASE_URL) {
+    ticketCounter++;
+    const newTicket = {
+      id: ticketCounter.toString(),
+      ticketNo: ticketCounter.toString(),
+      email,
+      count: parseInt(count),
+      age,
+      status: '未呼出',
+      createdAt: new Date().toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+    };
+    memoryTickets.push(newTicket);
+    return res.status(201).json(newTicket);
   }
   
   try {
     const result = await pool.query(
       `INSERT INTO reservations (ticket_no, email, count, age, status, created_at)
        VALUES (
-         (SELECT COALESCE(MAX(ticket_no), 0) + 1 FROM reservations),
+         (SELECT COALESCE(MAX(ticket_no), 0) + 1 FROM reservations WHERE DATE(created_at) = CURRENT_DATE),
          $1, $2, $3, '未呼出', NOW()
        )
        RETURNING *`,
@@ -48,7 +100,25 @@ router.post("/", async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("DB Error (POST /reservations):", err);
-    res.status(500).json({ error: "Database error" });
+    // エラー時はメモリに保存
+    ticketCounter++;
+    const newTicket = {
+      id: ticketCounter.toString(),
+      ticketNo: ticketCounter.toString(),
+      email,
+      count: parseInt(count),
+      age,
+      status: '未呼出',
+      createdAt: new Date().toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+    };
+    memoryTickets.push(newTicket);
+    res.status(201).json(newTicket);
   }
 });
 
@@ -61,11 +131,21 @@ router.put("/:id/status", async (req, res) => {
     return res.status(400).json({ error: 'Missing required field: status' });
   }
   
+  // データベースがない場合はメモリで更新
+  if (!process.env.DATABASE_URL) {
+    const ticket = memoryTickets.find(t => t.id === id || t.ticketNo === id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+    ticket.status = status;
+    return res.json(ticket);
+  }
+  
   try {
     const result = await pool.query(
       `UPDATE reservations 
        SET status = $1, called_at = NOW() 
-       WHERE id = $2 
+       WHERE id = $2 OR ticket_no::text = $2
        RETURNING *`,
       [status, id]
     );
@@ -77,7 +157,13 @@ router.put("/:id/status", async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("DB Error (PUT /reservations/:id/status):", err);
-    res.status(500).json({ error: "Database error" });
+    // エラー時はメモリで更新
+    const ticket = memoryTickets.find(t => t.id === id || t.ticketNo === id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+    ticket.status = status;
+    res.json(ticket);
   }
 });
 
@@ -128,6 +214,24 @@ router.get("/stats", async (_req, res) => {
     console.error("DB Error (GET /reservations/stats):", err);
     res.status(500).json({ error: "Database error" });
   }
+});
+
+// 呼び出し番号管理API
+router.get("/current-number", (_req, res) => {
+  res.json({ currentNumber, systemPaused });
+});
+
+router.put("/current-number", (req, res) => {
+  const { currentNumber: newNumber, systemPaused: newPaused } = req.body;
+  if (newNumber !== undefined) currentNumber = newNumber;
+  if (newPaused !== undefined) systemPaused = newPaused;
+  res.json({ currentNumber, systemPaused });
+});
+
+// 整理券カウンター取得API
+router.get("/counter", (_req, res) => {
+  checkAndResetIfNeeded();
+  res.json({ counter: ticketCounter });
 });
 
 export default router;
