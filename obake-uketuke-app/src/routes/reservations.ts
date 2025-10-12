@@ -24,7 +24,7 @@ router.get("/", requireAdmin, async (_req, res) => {
         status,
         channel,
         user_agent AS "userAgent",
-        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
+        TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt",
         called_at AS "calledAt"
       FROM reservations 
       WHERE created_at::date = CURRENT_DATE
@@ -83,7 +83,7 @@ router.post("/", validateReservation, async (req, res) => {
         status,
         channel,
         user_agent AS "userAgent",
-        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
+        TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt"
     `, [ticketNo, email, count, age, channel, userAgent]);
     
     await client.query('COMMIT');
@@ -122,7 +122,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
          age,
          status,
          channel,
-         TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"`,
+         TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt"`,
       [status, id]
     );
     
