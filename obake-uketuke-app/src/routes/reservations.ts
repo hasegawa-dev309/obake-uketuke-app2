@@ -305,11 +305,11 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
 
 // すべてのデータをクリア（管理者のみ）- シンプル版
 router.delete("/clear-all", requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
   try {
-    const client = await pool.connect();
-    await client.query("DELETE FROM reservations;");
-    await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1;");
-    client.release();
+    await client.query("DELETE FROM reservations");
+    await client.query("ALTER SEQUENCE reservations_id_seq RESTART WITH 1");
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
@@ -318,6 +318,8 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
     res.json({ ok: true, message: "all cleared" });
   } catch (err) {
     res.json({ ok: false, message: "failed" });
+  } finally {
+    client.release();
   }
 });
 
