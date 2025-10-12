@@ -26,14 +26,19 @@ function checkAndResetIfNeeded() {
 
 // 整理券一覧取得API（管理者のみ）
 router.get("/", requireAdmin, async (_req, res) => {
+  console.log('📋 整理券一覧取得リクエスト受信');
+  console.log(`🔍 DATABASE_URL存在: ${!!process.env.DATABASE_URL}`);
+  
   checkAndResetIfNeeded();
   
   // データベースがない場合はメモリから返す
   if (!process.env.DATABASE_URL) {
+    console.log(`📊 メモリから返す: ${memoryTickets.length}件`);
     return res.json(memoryTickets);
   }
   
   try {
+    console.log('💾 DB SELECT開始...');
     const result = await pool.query(`
       SELECT 
         id,
@@ -50,9 +55,12 @@ router.get("/", requireAdmin, async (_req, res) => {
       WHERE DATE(created_at) = CURRENT_DATE
       ORDER BY created_at DESC
     `);
+    console.log(`✅ DB取得成功: ${result.rows.length}件`);
+    console.log(`📄 取得データ:`, JSON.stringify(result.rows.slice(0, 3)));
     res.json(result.rows);
   } catch (err) {
-    console.error("DB Error (GET /reservations):", err);
+    console.error("❌ DB Error (GET /reservations):", err);
+    console.log(`📊 フォールバック: メモリから返す (${memoryTickets.length}件)`);
     // データベースエラーの場合はメモリから返す
     res.json(memoryTickets);
   }
@@ -62,6 +70,9 @@ router.get("/", requireAdmin, async (_req, res) => {
 router.post("/", validateReservation, async (req, res) => {
   const { email, count, age, channel = 'web' } = req.body;
   const userAgent = req.headers['user-agent'] || '';
+  
+  console.log(`📥 整理券発行リクエスト: email=${email}, count=${count}, age=${age}, channel=${channel}`);
+  console.log(`🔍 DATABASE_URL存在: ${!!process.env.DATABASE_URL}`);
   
   checkAndResetIfNeeded();
   
@@ -87,10 +98,12 @@ router.post("/", validateReservation, async (req, res) => {
     };
     memoryTickets.push(newTicket);
     console.log(`✅ 整理券発行 (メモリ): #${ticketCounter} - ${email} (${channel})`);
+    console.log(`📊 メモリ内整理券数: ${memoryTickets.length}`);
     return res.status(201).json(newTicket);
   }
   
   try {
+    console.log('💾 DB INSERT開始...');
     const result = await pool.query(
       `INSERT INTO reservations (ticket_no, email, count, age, status, channel, user_agent, created_at)
        VALUES (
@@ -110,10 +123,12 @@ router.post("/", validateReservation, async (req, res) => {
       [email, count, age, channel, userAgent]
     );
     
-    console.log(`✅ 整理券発行 (DB): #${result.rows[0].ticketNo} - ${email} (${channel})`);
+    console.log(`✅ 整理券発行 (DB成功): #${result.rows[0].ticketNo} - ${email} (${channel})`);
+    console.log(`📄 DB保存結果:`, JSON.stringify(result.rows[0]));
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error("DB Error (POST /reservations):", err);
+    console.error("❌ DB Error (POST /reservations):", err);
+    console.error("エラー詳細:", err);
     // エラー時はメモリに保存
     ticketCounter++;
     const newTicket = {
@@ -135,6 +150,7 @@ router.post("/", validateReservation, async (req, res) => {
     };
     memoryTickets.push(newTicket);
     console.log(`⚠️ 整理券発行 (メモリ/フォールバック): #${ticketCounter}`);
+    console.log(`📊 メモリ内整理券数: ${memoryTickets.length}`);
     res.status(201).json(newTicket);
   }
 });
