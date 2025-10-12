@@ -305,47 +305,36 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
 
 // すべてのデータをクリア（管理者のみ）
 router.delete("/all", requireAdmin, async (req, res) => {
-  const client = await pool.connect();
-  
   try {
-    console.log("🗑️ [DELETE /all] すべてのデータ削除開始");
+    console.log("🗑️ [DELETE /all] データ削除開始");
     
-    await client.query('BEGIN');
-    
-    // 削除前の件数を取得
-    const countResult = await client.query('SELECT COUNT(*) as count FROM reservations');
-    const totalCount = parseInt(countResult.rows[0].count);
-    console.log(`🗑️ [DELETE /all] 削除対象: ${totalCount}件`);
-    
-    // すべての予約データを削除
-    await client.query("DELETE FROM reservations");
+    // シンプルにDELETE実行
+    const result = await pool.query("DELETE FROM reservations");
+    const deletedCount = result.rowCount || 0;
     
     // メモリ内のカウンターもリセット
     currentNumber = 1;
     systemPaused = false;
     
-    await client.query('COMMIT');
-    
-    console.log(`✅ [DELETE /all] ${totalCount}件のデータを削除、カウンターをリセット`);
+    console.log(`✅ [DELETE /all] ${deletedCount}件削除完了`);
     
     return res.json({ 
       ok: true, 
-      message: `${totalCount}件のデータを削除しました`,
-      data: { deletedCount: totalCount, currentNumber: 1 } 
+      message: `${deletedCount}件のデータを削除しました`,
+      data: { deletedCount, currentNumber: 1 } 
     });
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error("❌ [DELETE /all] DBエラー:", err);
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error("❌ [DELETE /all] エラー詳細:", errorMessage);
+    console.error("❌ [DELETE /all] エラー:", err);
+    
+    // エラーが発生してもメモリ内のカウンターはリセット
+    currentNumber = 1;
+    systemPaused = false;
     
     return res.status(500).json({ 
       ok: false, 
-      error: "db_error", 
-      message: errorMessage 
+      error: "削除に失敗しました",
+      message: "データベースエラーが発生しました。管理者にお問い合わせください。" 
     });
-  } finally {
-    client.release();
   }
 });
 

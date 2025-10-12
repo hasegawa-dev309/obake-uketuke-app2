@@ -21,13 +21,14 @@ export function SettingsPage() {
         localStorage.removeItem("lastTicketNumber");
         localStorage.removeItem("current_number");
         localStorage.removeItem("ticket_counter");
-        window.location.reload();
+        // 少し待ってからリロード
+        setTimeout(() => window.location.reload(), 500);
       } else {
-        alert(`エラー: ${result.error || "データクリアに失敗しました"}`);
+        alert(`エラー: ${result.message || result.error || "データクリアに失敗しました"}`);
       }
     } catch (err) {
       console.error("データクリアエラー:", err);
-      alert("データクリアに失敗しました。ネットワークを確認してください。");
+      alert("データクリアに失敗しました。しばらく時間をおいてから再度お試しください。");
     } finally {
       setLoading(false);
     }
