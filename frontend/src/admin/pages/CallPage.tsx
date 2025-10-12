@@ -49,7 +49,18 @@ export default function CallPage(){
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const toEmail = ticket.email;
     const subject = "お化け屋敷：順番のお知らせ";
-    const body = `整理券番号 ${current} のお客様\n\nまもなく順番となります。受付までお越しください。\n\nお化け屋敷スタッフ`;
+    const body = `整理券番号 ${current} 番のお客様へ
+
+まもなくお化け屋敷へのご案内となります。
+恐れ入りますが、受付前までお越しください。
+
+待機場所：5号館1階5102教室(お化け屋敷受付)
+キャンセルされる場合は、このメールに返信せずそのままにしてください。
+
+それでは、皆さまの勇気をお待ちしております👻
+
+—
+第61回 東洋大学 白山祭　お化け屋敷スタッフ一同`;
     
     // Gmailの作成画面を開く
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
@@ -69,10 +80,23 @@ export default function CallPage(){
     
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const subject = "お化け屋敷：まもなくお呼びします";
-    const body = `お化け屋敷の整理券をお持ちのお客様\n\n現在の呼び出し番号は ${current} です。\nまもなくお呼びしますので、受付付近でお待ちください。\n\nお化け屋敷スタッフ`;
     
     // 複数の宛先にメールを送る場合は、各宛先に対して個別にGmail作成画面を開く
     upcomingTickets.forEach((ticket, index) => {
+      const ticketNumber = ticket.ticketNo || ticket.id;
+      const body = `整理券番号 ${ticketNumber} 番のお客様へ
+
+まもなくお化け屋敷へのご案内となります。
+恐れ入りますが、受付前までお越しください。
+
+待機場所：5号館1階5102教室(お化け屋敷受付)
+キャンセルされる場合は、このメールに返信せずそのままにしてください。
+
+それでは、皆さまの勇気をお待ちしております👻
+
+—
+第61回 東洋大学 白山祭　お化け屋敷スタッフ一同`;
+      
       setTimeout(() => {
         const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ticket.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
         window.open(gmailUrl, '_blank');

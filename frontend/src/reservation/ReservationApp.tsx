@@ -52,6 +52,12 @@ export default function ReservationApp() {
       localStorage.setItem("obake_last_reset_date", today);
       localStorage.setItem("ticket_counter", "0");
       localStorage.setItem("current_number", "1");
+      
+      // 整理券データを全削除（新しい日の開始）
+      localStorage.setItem("admin_tickets", "[]");
+      localStorage.setItem("obake_tickets_v1", "[]");
+      
+      console.log("新しい日が開始されました。整理券データをリセットしました。");
     }
   }
 

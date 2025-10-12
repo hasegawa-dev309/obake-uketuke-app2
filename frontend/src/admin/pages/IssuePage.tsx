@@ -11,12 +11,34 @@ export function IssuePage() {
   const [error, setError] = useState<string | null>(null);
   const [ticketNo, setTicketNo] = useState<string | null>(null);
 
+  // 日付が変わったら整理券番号をリセット
+  function checkAndResetIfNeeded() {
+    const today = new Date().toISOString().split('T')[0];
+    const lastReset = localStorage.getItem("obake_last_reset_date");
+    
+    if (lastReset !== today) {
+      // 日付が変わったのでリセット
+      localStorage.setItem("obake_last_reset_date", today);
+      localStorage.setItem("ticket_counter", "0");
+      localStorage.setItem("current_number", "1");
+      
+      // 整理券データを全削除（新しい日の開始）
+      localStorage.setItem("admin_tickets", "[]");
+      localStorage.setItem("obake_tickets_v1", "[]");
+      
+      console.log("新しい日が開始されました。整理券データをリセットしました。");
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     
     try {
+      // 日付チェックとリセット
+      checkAndResetIfNeeded();
+      
       // 整理券番号を1から順番に生成（ticket_counterを使用）
       const counter = parseInt(localStorage.getItem("ticket_counter") || "0");
       const nextTicketNo = counter + 1;
