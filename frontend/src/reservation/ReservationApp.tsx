@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { CalendarIcon, ClockIcon, TicketIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { Ghost } from "phosphor-react";
-import { postReservation } from "../lib/api";
+import { postReservation, getSystemStatus } from "../lib/api";
 
 type Age = "一般" | "大学生" | "高校生以下";
 
@@ -18,15 +18,22 @@ export default function ReservationApp() {
   const [ticketNo, setTicketNo] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
-  // 一時停止状態を監視
+  // 一時停止状態をAPIから監視
   useEffect(() => {
-    const checkPausedStatus = () => {
-      const paused = localStorage.getItem("system_paused") === "true";
-      setIsPaused(paused);
+    const checkPausedStatus = async () => {
+      try {
+        const result = await getSystemStatus();
+        if (result.ok && result.data) {
+          setIsPaused(result.data.systemPaused);
+        }
+      } catch (err) {
+        console.error("システム状態取得エラー:", err);
+        // エラー時はローカルの状態を維持
+      }
     };
     
     checkPausedStatus();
-    const interval = setInterval(checkPausedStatus, 1000);
+    const interval = setInterval(checkPausedStatus, 3000); // 3秒ごとに確認
     return () => clearInterval(interval);
   }, []);
 

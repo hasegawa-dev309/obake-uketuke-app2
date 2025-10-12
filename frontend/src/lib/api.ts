@@ -74,6 +74,12 @@ export async function postReservation(payload: {
   return res.json();
 }
 
+// システム状態取得（公開API・認証不要）
+export async function getSystemStatus() {
+  const res = await publicFetch('/reservations/status');
+  return res.json();
+}
+
 // 整理券一覧取得（管理API）
 export async function fetchReservations() {
   const res = await authenticatedFetch('/reservations');

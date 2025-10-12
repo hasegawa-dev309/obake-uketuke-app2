@@ -234,6 +234,19 @@ router.get("/current-number", requireAdmin, (_req, res) => {
   return res.json({ ok: true, data: { currentNumber, systemPaused } });
 });
 
+// 公開：システム状態取得（認証不要）
+router.get("/status", (_req, res) => {
+  console.log(`🔍 [GET /status] システム状態取得: 番号=${currentNumber}, 停止=${systemPaused}`);
+  return res.json({ 
+    ok: true, 
+    data: { 
+      currentNumber, 
+      systemPaused,
+      timestamp: new Date().toISOString()
+    } 
+  });
+});
+
 router.put("/current-number", requireAdmin, (req, res) => {
   const { currentNumber: newNumber, systemPaused: newPaused } = req.body;
   
