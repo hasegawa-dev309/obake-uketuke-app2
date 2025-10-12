@@ -104,3 +104,19 @@ export async function updateCurrentNumber(currentNumber: number, systemPaused: b
   return res.json();
 }
 
+// 呼び出し番号をリセット（管理API）
+export async function resetCallNumber() {
+  const res = await authenticatedFetch('/reservations/reset-number', {
+    method: 'POST'
+  });
+  return res.json();
+}
+
+// すべてのデータをクリア（管理API）
+export async function clearAllData() {
+  const res = await authenticatedFetch('/reservations/clear-all', {
+    method: 'DELETE'
+  });
+  return res.json();
+}
+

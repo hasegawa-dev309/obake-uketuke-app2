@@ -1,24 +1,52 @@
+import { useState } from 'react';
+import { resetCallNumber, clearAllData } from '../../lib/api';
+
 export function SettingsPage() {
-  const handleClearData = () => {
-    if (confirm("すべての整理券データをクリアしますか？この操作は取り消せません。")) {
-      localStorage.removeItem("admin_tickets");
-      localStorage.removeItem("obake_tickets_v1");
-      localStorage.removeItem("lastTicketNumber");
-      localStorage.setItem("current_number", "1");
-      localStorage.setItem("ticket_counter", "0");
-      alert("データをクリアしました");
-      window.location.reload();
+  const [loading, setLoading] = useState(false);
+
+  const handleClearData = async () => {
+    if (!confirm("すべての整理券データをクリアしますか？この操作は取り消せません。")) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const result = await clearAllData();
+      
+      if (result.ok) {
+        alert(result.message || "データをクリアしました");
+        window.location.reload();
+      } else {
+        alert(`エラー: ${result.error || '不明なエラー'}`);
+      }
+    } catch (error) {
+      console.error('データクリアエラー:', error);
+      alert('データのクリアに失敗しました。管理者としてログインしていることを確認してください。');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleResetCallNumber = () => {
-    if (confirm("呼び出し番号と整理券番号を1にリセットしますか？")) {
-      localStorage.setItem("current_number", "1");
-      localStorage.setItem("ticket_counter", "0");
-      // 予約画面用の番号もリセット
-      localStorage.removeItem("lastTicketNumber");
-      alert("呼び出し番号と整理券番号をリセットしました");
-      window.location.reload();
+  const handleResetCallNumber = async () => {
+    if (!confirm("呼び出し番号と整理券番号を1にリセットしますか？")) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const result = await resetCallNumber();
+      
+      if (result.ok) {
+        alert(result.message || "呼び出し番号をリセットしました");
+        window.location.reload();
+      } else {
+        alert(`エラー: ${result.error || '不明なエラー'}`);
+      }
+    } catch (error) {
+      console.error('番号リセットエラー:', error);
+      alert('番号のリセットに失敗しました。管理者としてログインしていることを確認してください。');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,9 +62,10 @@ export function SettingsPage() {
           <div>
             <button 
               onClick={handleResetCallNumber}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              呼び出し番号・整理券番号をリセット
+              {loading ? '処理中...' : '呼び出し番号・整理券番号をリセット'}
             </button>
             <p className="text-sm text-slate-600 mt-2">
               呼び出し番号と整理券番号を1に戻します
@@ -46,9 +75,10 @@ export function SettingsPage() {
           <div className="pt-4 border-t">
             <button 
               onClick={handleClearData}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors"
+              disabled={loading}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              すべてのデータをクリア
+              {loading ? '処理中...' : 'すべてのデータをクリア'}
             </button>
             <p className="text-sm text-slate-600 mt-2">
               ⚠️ すべての整理券データと呼び出し番号が削除されます（取り消し不可）

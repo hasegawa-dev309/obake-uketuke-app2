@@ -268,4 +268,52 @@ router.get("/counter", async (_req, res) => {
   }
 });
 
+// 呼び出し番号をリセット（管理者専用）
+router.post('/reset-number', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    console.log("🔄 [POST /reset-number] 呼び出し番号をリセット");
+    
+    // メモリ内の呼び出し番号をリセット
+    currentNumber = 1;
+    systemPaused = false;
+    
+    console.log("✅ [POST /reset-number] リセット完了: currentNumber=1, systemPaused=false");
+    
+    return res.json({ 
+      ok: true, 
+      message: '呼び出し番号をリセットしました',
+      data: { currentNumber: 1, systemPaused: false }
+    });
+  } catch (err) {
+    console.error("❌ [POST /reset-number] エラー:", err);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// すべてのデータをクリア（当日分のみ削除、管理者専用）
+router.delete('/clear-all', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    console.log("🗑️ [DELETE /clear-all] 当日のすべてのデータを削除");
+    
+    const result = await pool.query(
+      `DELETE FROM reservations WHERE DATE(created_at) = CURRENT_DATE RETURNING id`
+    );
+    
+    // 呼び出し番号もリセット
+    currentNumber = 1;
+    systemPaused = false;
+    
+    console.log(`✅ [DELETE /clear-all] ${result.rowCount}件のデータを削除しました`);
+    
+    return res.json({ 
+      ok: true, 
+      message: `${result.rowCount}件のデータをクリアしました`,
+      data: { deletedCount: result.rowCount }
+    });
+  } catch (err) {
+    console.error("❌ [DELETE /clear-all] DBエラー:", err);
+    return res.status(500).json({ ok: false, error: "db_error" });
+  }
+});
+
 export default router;
