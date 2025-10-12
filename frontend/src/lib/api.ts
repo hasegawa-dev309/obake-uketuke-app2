@@ -118,24 +118,26 @@ export async function resetCounter() {
   return res.json();
 }
 
-// すべてのデータをクリア（直接Heroku API）
+// すべてのデータをクリア（POST統一・認証付き）
 export async function deleteAllReservations() {
   try {
     console.log("[deleteAllReservations] リクエスト送信開始");
-    const res = await fetch("https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/reservations/clear-all", {
+    const token = localStorage.getItem("admin_token") || "";
+    const res = await fetch(`${API_BASE_URL}/reservations/clear-all`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
-      body: JSON.stringify({ _method: "DELETE" }),
     });
     
     console.log("[deleteAllReservations] レスポンス受信:", res.status, res.statusText);
     
     if (!res.ok) {
-      console.error("[deleteAllReservations] HTTPエラー:", res.status);
-      return { ok: false, error: `HTTP ${res.status}` };
+      const json = await res.json().catch(() => ({}));
+      const msg = json?.error || `HTTP ${res.status}`;
+      console.error("[deleteAllReservations] HTTPエラー:", msg);
+      return { ok: false, error: msg };
     }
     
     const data = await res.json();

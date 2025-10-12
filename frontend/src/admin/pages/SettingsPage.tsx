@@ -11,18 +11,10 @@ export function SettingsPage() {
     
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token');
-      const resp = await fetch(`${import.meta.env.VITE_API_URL}/reservations/clear-all`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      const json = await resp.json();
+      const result = await deleteAllReservations();
 
-      if (!resp.ok || !json?.ok) {
-        const msg = json?.error || `HTTP ${resp.status}`;
+      if (!result.ok) {
+        const msg = result.error || result.detail || 'unknown';
         alert(`エラー: ${msg}`);
         return;
       }
