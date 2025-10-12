@@ -16,6 +16,7 @@ export default function ReservationApp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ticketNo, setTicketNo] = useState<string | null>(null);
+  const [createdAt, setCreatedAt] = useState<string>("");
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
   // 一時停止状態をAPIから監視
@@ -73,9 +74,10 @@ export default function ReservationApp() {
       
       console.log("✅ 整理券発行成功:", result.data);
       
-      // 整理券番号を設定
+      // 整理券番号と登録時間を設定
       const ticketNumber = result.data.ticketNo || result.data.id;
       setTicketNo(ticketNumber);
+      setCreatedAt(result.data.createdAt || "");
       
     } catch (err: any) {
       console.error("❌ 予約エラー:", err);
@@ -98,6 +100,11 @@ export default function ReservationApp() {
             <div className="text-5xl font-bold text-violet-600">
               {ticketNo}
             </div>
+            {createdAt && (
+              <div className="mt-3 text-sm text-slate-600">
+                登録時間: <span className="font-medium">{createdAt}</span>
+              </div>
+            )}
           </div>
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 mb-6">
