@@ -24,7 +24,7 @@ export function SettingsPage() {
         // 少し待ってからリロード
         setTimeout(() => window.location.reload(), 500);
       } else {
-        alert("❌ クリアに失敗しました（proxy）。もう一度お試しください。");
+        alert("❌ クリアに失敗しました。もう一度お試しください。");
       }
     } catch (err) {
       console.error("データクリアエラー:", err);

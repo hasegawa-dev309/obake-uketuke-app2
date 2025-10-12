@@ -118,15 +118,14 @@ export async function resetCounter() {
   return res.json();
 }
 
-// すべてのデータをクリア（プロキシ経由）
+// すべてのデータをクリア（直接Heroku API）
 export async function deleteAllReservations() {
-  const res = await fetch("/api/admin-proxy", {
+  const res = await fetch("https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api/reservations/clear-all", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-admin-password": "obake2025",
     },
-    body: JSON.stringify({ action: "clear_all" }),
+    body: JSON.stringify({ _method: "DELETE" }),
   });
   return res.json();
 }
