@@ -1,6 +1,6 @@
 import express from "express";
 import { pool } from "../db";
-import { requireAdmin } from "../middleware/auth";
+import { requireAdmin, AuthRequest } from "../middleware/auth";
 import { validateReservation, validateStatus } from "../middleware/validation";
 
 const router = express.Router();
