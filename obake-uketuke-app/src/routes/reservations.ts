@@ -323,7 +323,7 @@ router.delete("/clear-all", requireAdmin, async (req, res) => {
   }
 });
 
-// POSTメソッドでの削除（Vercel対応）
+// POSTメソッドでの削除（Vercel対応・認証不要）
 router.post("/clear-all", async (req, res) => {
   try {
     const method = (req.body?._method || "").toUpperCase();
@@ -334,9 +334,7 @@ router.post("/clear-all", async (req, res) => {
     const client = await pool.connect();
     
     try {
-      await client.query("BEGIN");
       await client.query("TRUNCATE TABLE reservations RESTART IDENTITY");
-      await client.query("COMMIT");
       
       // メモリ内のカウンターもリセット
       currentNumber = 1;
@@ -344,7 +342,6 @@ router.post("/clear-all", async (req, res) => {
       
       res.json({ ok: true });
     } catch (err) {
-      await client.query("ROLLBACK");
       res.json({ ok: false, error: "db_error" });
     } finally {
       client.release();

@@ -1,5 +1,13 @@
 {
+  "functions": {
+    "frontend/api/admin-proxy.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/admin-proxy",
+      "destination": "/api/admin-proxy.ts"
+    }
   ]
 }

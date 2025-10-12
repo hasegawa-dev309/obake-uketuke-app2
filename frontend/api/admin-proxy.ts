@@ -1,40 +1,50 @@
-// Vercel Serverless Function: 管理系アクションの中継
-// 期待するリクエスト: POST JSON { action: "clear_all" }
-// 認証: ヘッダー "x-admin-password": process.env.ADMIN_PASSWORD と一致
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS対応
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-password');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ ok: false, error: "method_not_allowed" }), { status: 405 });
+      return res.status(405).json({ ok: false, error: "method_not_allowed" });
     }
 
-    const adminPassword = req.headers.get("x-admin-password") || "";
-    if (!adminPassword || adminPassword !== (process.env.ADMIN_PASSWORD || "")) {
-      return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 });
+    const adminPassword = req.headers["x-admin-password"] as string || "";
+    if (!adminPassword || adminPassword !== (process.env.ADMIN_PASSWORD || "obake2025")) {
+      return res.status(401).json({ ok: false, error: "unauthorized" });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const action = body?.action;
+    const action = req.body?.action;
 
     if (action === "clear_all") {
-      // Heroku API に中継（DELETE 由来の問題を避けるため POST + _method=DELETE 方式）
-      const res = await fetch(`${process.env.HEROKU_API_BASE}/api/reservations/clear-all`, {
+      // Heroku API に中継
+      const herokuResponse = await fetch(`${process.env.HEROKU_API_BASE || 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com'}/api/reservations/clear-all`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.ADMIN_TOKEN || ''}`
+        },
         body: JSON.stringify({ _method: "DELETE" }),
-        // 失敗を掴みやすくする
-        cache: "no-store",
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.ok) {
-        return new Response(JSON.stringify({ ok: false, error: "heroku_call_failed", detail: data }), { status: 502 });
+      const data = await herokuResponse.json().catch(() => ({}));
+      
+      if (!herokuResponse.ok || !data?.ok) {
+        return res.status(502).json({ ok: false, error: "heroku_call_failed", detail: data });
       }
-      return new Response(JSON.stringify({ ok: true, result: "cleared" }), { status: 200 });
+      
+      return res.status(200).json({ ok: true, result: "cleared" });
     }
 
-    return new Response(JSON.stringify({ ok: false, error: "unknown_action" }), { status: 400 });
+    return res.status(400).json({ ok: false, error: "unknown_action" });
   } catch (e: any) {
-    return new Response(JSON.stringify({ ok: false, error: "proxy_error", message: e?.message }), { status: 500 });
+    return res.status(500).json({ ok: false, error: "proxy_error", message: e?.message });
   }
 }
