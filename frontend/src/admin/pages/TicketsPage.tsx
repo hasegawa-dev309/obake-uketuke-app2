@@ -75,10 +75,11 @@ export default function TicketsPage(){
       
       if (result.ok) {
         console.log("✅ ステータス更新成功");
-        // 成功時は楽観的更新を維持（再取得しない）
+        // 成功したら再取得して確実に同期
+        setTimeout(loadTickets, 500);
       } else {
         console.error("⚠️ ステータス更新失敗:", result);
-        // エラー時のみ元に戻す
+        // エラー時は元に戻す
         loadTickets();
       }
     } catch (err) {
