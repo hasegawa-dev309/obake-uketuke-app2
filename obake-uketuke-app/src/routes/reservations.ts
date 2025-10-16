@@ -129,7 +129,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     
     const result = await pool.query(
       `UPDATE reservations 
-       SET status = $1, called_at = NOW(), updated_at = NOW()
+       SET status = $1, called_at = NOW()
        WHERE id = $2::bigint OR ticket_no = $2::bigint
        RETURNING 
          id,
