@@ -108,8 +108,25 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
   const { status } = req.body;
   
   console.log(`📝 [PUT /:id/status] id=${id}, status=${status}`);
+  console.log(`📝 [PUT] Request body:`, req.body);
+  console.log(`📝 [PUT] Request headers:`, req.headers);
   
   try {
+    // まず対象のレコードが存在するかチェック
+    const checkResult = await pool.query(
+      `SELECT id, ticket_no FROM reservations 
+       WHERE id = $1 OR ticket_no::text = $1 
+       AND created_at::date = CURRENT_DATE`,
+      [id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      console.log(`⚠️ [PUT] 整理券が見つかりません: ${id}`);
+      return res.status(404).json({ ok: false, error: 'Reservation not found' });
+    }
+    
+    console.log(`📝 [PUT] 対象レコード発見: id=${checkResult.rows[0].id}, ticket_no=${checkResult.rows[0].ticket_no}`);
+    
     const result = await pool.query(
       `UPDATE reservations 
        SET status = $1, called_at = NOW(), updated_at = NOW()
@@ -127,15 +144,17 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      console.log(`⚠️ [PUT] 整理券が見つかりません: ${id}`);
-      return res.status(404).json({ ok: false, error: 'Reservation not found' });
+      console.log(`⚠️ [PUT] 更新後のレコードが見つかりません: ${id}`);
+      return res.status(404).json({ ok: false, error: 'Update failed' });
     }
     
     console.log(`✅ [PUT] ステータス更新成功: #${result.rows[0].ticketNo} → ${status}`);
     return res.json({ ok: true, data: result.rows[0] });
   } catch (err) {
     console.error("❌ [PUT /:id/status] DBエラー:", err);
-    return res.status(500).json({ ok: false, error: "db_error" });
+    console.error("❌ [PUT] エラー詳細:", err.message);
+    console.error("❌ [PUT] エラースタック:", err.stack);
+    return res.status(500).json({ ok: false, error: "db_error", details: err.message });
   }
 });
 

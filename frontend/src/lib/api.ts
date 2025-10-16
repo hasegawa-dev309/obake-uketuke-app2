@@ -90,6 +90,9 @@ export async function fetchReservations() {
 export async function updateReservationStatus(id: string, status: string) {
   const res = await authenticatedFetch(`/reservations/${id}/status`, {
     method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ status })
   });
   return res.json();

@@ -63,9 +63,13 @@ export default function TicketsPage(){
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
+    console.log(`🔄 ステータス更新開始: id=${id}, status=${newStatus}`);
+    
     try {
       // APIでステータスを更新（楽観的更新は削除）
       const result = await updateReservationStatus(id, newStatus);
+      
+      console.log("📝 APIレスポンス:", result);
       
       if (result.ok) {
         console.log("✅ ステータス更新成功");
@@ -73,11 +77,13 @@ export default function TicketsPage(){
         await loadTickets();
       } else {
         console.error("⚠️ ステータス更新失敗:", result);
-        alert(`エラー: ${result.error || "ステータス更新に失敗しました"}`);
+        const errorMsg = result.error || result.details || "ステータス更新に失敗しました";
+        alert(`エラー: ${errorMsg}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ ステータス更新エラー:", err);
-      alert("ステータス更新に失敗しました。ネットワークを確認してください。");
+      console.error("❌ エラー詳細:", err.message);
+      alert(`ステータス更新に失敗しました: ${err.message || "ネットワークを確認してください"}`);
     }
   };
 
