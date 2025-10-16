@@ -150,7 +150,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     
     console.log(`✅ [PUT] ステータス更新成功: #${result.rows[0].ticketNo} → ${status}`);
     return res.json({ ok: true, data: result.rows[0] });
-  } catch (err) {
+  } catch (err: any) {
     console.error("❌ [PUT /:id/status] DBエラー:", err);
     console.error("❌ [PUT] エラー詳細:", err.message);
     console.error("❌ [PUT] エラースタック:", err.stack);
