@@ -129,4 +129,12 @@ export async function resetCounter() {
   return res.json();
 }
 
+// 全データ削除（管理API）
+export async function clearAllData() {
+  const res = await authenticatedFetch('/reservations/clear-all', {
+    method: 'POST'
+  });
+  return res.json();
+}
+
 

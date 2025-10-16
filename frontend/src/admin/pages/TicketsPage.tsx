@@ -119,7 +119,7 @@ export default function TicketsPage(){
         ticket.count.toString(),
         ticket.age,
         ticket.status,
-        new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+        ticket.createdAt
       ])
     ];
 
@@ -139,9 +139,8 @@ export default function TicketsPage(){
     const hourStats: { [key: string]: number } = {};
     tickets.forEach(ticket => {
       try {
-        // 日本時間に変換してから時間を抽出
-        const jstDate = new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
-        const match = jstDate.match(/(\d{1,2}):(\d{2})/);
+        // APIから既に日本時間が返されているので、そのまま時間を抽出
+        const match = ticket.createdAt.match(/(\d{1,2}):(\d{2})/);
         if (match) {
           const hour = parseInt(match[1]);
           const hourKey = `${hour}:00-${hour}:59`;
