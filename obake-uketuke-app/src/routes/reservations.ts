@@ -115,7 +115,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     // まず対象のレコードが存在するかチェック
     const checkResult = await pool.query(
       `SELECT id, ticket_no FROM reservations 
-       WHERE id = $1 OR ticket_no::text = $1 
+       WHERE id = $1::bigint OR ticket_no = $1::bigint 
        AND created_at::date = CURRENT_DATE`,
       [id]
     );
@@ -130,7 +130,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     const result = await pool.query(
       `UPDATE reservations 
        SET status = $1, called_at = NOW(), updated_at = NOW()
-       WHERE id = $2 OR ticket_no::text = $2
+       WHERE id = $2::bigint OR ticket_no = $2::bigint
        RETURNING 
          id,
          ticket_no AS "ticketNo",
@@ -166,7 +166,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   
   try {
     const result = await pool.query(
-      `DELETE FROM reservations WHERE id = $1 OR ticket_no::text = $1 
+      `DELETE FROM reservations WHERE id = $1::bigint OR ticket_no = $1::bigint 
        RETURNING id, ticket_no AS "ticketNo", email`,
       [id]
     );
