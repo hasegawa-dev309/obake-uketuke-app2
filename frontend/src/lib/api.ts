@@ -110,6 +110,14 @@ export async function updateCurrentNumber(currentNumber: number, systemPaused: b
   return res.json();
 }
 
+// 個別整理券削除（管理API）
+export async function deleteReservation(id: string) {
+  const res = await authenticatedFetch(`/reservations/${id}`, {
+    method: 'DELETE'
+  });
+  return res.json();
+}
+
 // カウンターリセット（管理API）
 export async function resetCounter() {
   const res = await authenticatedFetch('/reservations/reset-counter', {

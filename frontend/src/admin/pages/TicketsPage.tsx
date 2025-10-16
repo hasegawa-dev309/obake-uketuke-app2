@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
-import { fetchReservations, updateReservationStatus } from "../../lib/api";
+import { fetchReservations, updateReservationStatus, deleteReservation } from "../../lib/api";
 
 type Ticket = { 
   id: string; 
@@ -64,28 +64,43 @@ export default function TicketsPage(){
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
-      // 楽観的更新（即座にUIを更新）
-      const updatedTickets = tickets.map(t => 
-        t.id === id || t.ticketNo === id ? { ...t, status: newStatus } : t
-      );
-      setTickets(updatedTickets);
-      
-      // APIでステータスを更新
+      // APIでステータスを更新（楽観的更新は削除）
       const result = await updateReservationStatus(id, newStatus);
       
       if (result.ok) {
         console.log("✅ ステータス更新成功");
-        // 成功したら再取得して確実に同期
-        setTimeout(loadTickets, 500);
+        // 成功時のみUIを更新
+        await loadTickets();
       } else {
         console.error("⚠️ ステータス更新失敗:", result);
-        // エラー時は元に戻す
-        loadTickets();
+        alert(`エラー: ${result.error || "ステータス更新に失敗しました"}`);
       }
     } catch (err) {
       console.error("❌ ステータス更新エラー:", err);
-      // エラー時は再取得
-      loadTickets();
+      alert("ステータス更新に失敗しました。ネットワークを確認してください。");
+    }
+  };
+
+  const handleDelete = async (id: string, ticketNo: string) => {
+    if (!confirm(`整理券${ticketNo}番を削除しますか？\nこの操作は取り消せません。`)) {
+      return;
+    }
+
+    try {
+      const result = await deleteReservation(id);
+      
+      if (result.ok) {
+        console.log("✅ 削除成功");
+        alert(`整理券${ticketNo}番を削除しました`);
+        // 成功時のみUIを更新
+        await loadTickets();
+      } else {
+        console.error("⚠️ 削除失敗:", result);
+        alert(`エラー: ${result.error || "削除に失敗しました"}`);
+      }
+    } catch (err) {
+      console.error("❌ 削除エラー:", err);
+      alert("削除に失敗しました。ネットワークを確認してください。");
     }
   };
 
@@ -329,6 +344,13 @@ export default function TicketsPage(){
                     >
                       <XCircle size={14} weight="bold" />
                       キャンセル
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(ticket.id, ticket.ticketNo || ticket.id)}
+                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 flex items-center gap-1"
+                    >
+                      <XCircle size={14} weight="bold" />
+                      削除
                     </button>
                   </div>
                 </td>
