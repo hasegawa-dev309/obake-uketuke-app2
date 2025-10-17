@@ -20,6 +20,8 @@ function CompletePage() {
     // APIから現在の呼び出し番号と整理券番号を取得
     const fetchCurrentNumbers = async () => {
       try {
+        console.log('API呼び出し開始...');
+        
         // 現在の呼び出し番号を取得
         const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
           method: 'GET',
@@ -27,8 +29,10 @@ function CompletePage() {
           mode: 'cors'
         });
         
+        console.log('Status response:', statusResponse.status);
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
+          console.log('Status data:', statusData);
           setCurrentNumber(statusData.data?.currentNumber || 1);
         }
 
@@ -39,10 +43,14 @@ function CompletePage() {
           mode: 'cors'
         });
         
+        console.log('Counter response:', counterResponse.status);
         if (counterResponse.ok) {
           const counterData = await counterResponse.json();
+          console.log('Counter data:', counterData);
           setCurrentTicketNumber(counterData.data?.counter || 1);
         }
+        
+        console.log('API呼び出し完了');
       } catch (err) {
         console.error("現在の番号取得エラー:", err);
       }
@@ -78,6 +86,11 @@ function CompletePage() {
               </div>
             </>
           )}
+          
+          {/* デバッグ情報 */}
+          <div className="text-xs text-gray-400 mb-2">
+            Debug: ticketNo={ticketNo}, currentNumber={currentNumber}, currentTicketNumber={currentTicketNumber}
+          </div>
           
           {/* 現在の状況表示 - 常に表示 */}
           <div className="grid grid-cols-2 gap-4 mb-4">
