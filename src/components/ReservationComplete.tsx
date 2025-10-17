@@ -10,34 +10,48 @@ export function ReservationComplete() {
   const { reservations } = useGlobalReservations()
   const [countdown, setCountdown] = useState(10)
   const [currentCallNumber, setCurrentCallNumber] = useState<number>(1)
+  const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(1)
   
   // 最新の予約情報を取得
   const latestReservation = reservations[0] // 最新の予約
   const reservationNumber = latestReservation?.reservation_number || 'T001'
   const message = '整理券が正常に発行されました！'
 
-  // 現在の呼び出し番号を取得
+  // 現在の呼び出し番号と整理券番号を取得
   useEffect(() => {
-    const fetchCurrentNumber = async () => {
+    const fetchCurrentNumbers = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/reservations/status`, {
+        // 現在の呼び出し番号を取得
+        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors'
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentCallNumber(data.data?.currentNumber || 1);
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setCurrentCallNumber(statusData.data?.currentNumber || 1);
+        }
+
+        // 現在の整理券番号（カウンター）を取得
+        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors'
+        });
+        
+        if (counterResponse.ok) {
+          const counterData = await counterResponse.json();
+          setCurrentTicketNumber(counterData.data?.counter || 1);
         }
       } catch (err) {
         console.error("現在の番号取得エラー:", err);
       }
     };
     
-    fetchCurrentNumber();
+    fetchCurrentNumbers();
     // 定期的に更新（3秒ごと）
-    const interval = setInterval(fetchCurrentNumber, 3000);
+    const interval = setInterval(fetchCurrentNumbers, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -111,20 +125,39 @@ export function ReservationComplete() {
             </p>
           </div>
           
-          {/* 現在の呼び出し番号 */}
-          <div className="text-center mb-8">
-            <p className="text-sm text-gray-600 mb-2">現在の呼び出し番号</p>
-            <div className="inline-flex items-center justify-center w-24 h-24 border-4 border-blue-300 rounded-full bg-blue-50 shadow-md">
-              <span className="text-2xl font-bold text-blue-600">
-                {currentCallNumber}
-              </span>
-            </div>
-            {parseInt(reservationNumber.replace('T', '')) - currentCallNumber > 0 && (
-              <div className="mt-3 text-sm text-gray-500">
-                あと約 <span className="font-bold text-orange-600">{parseInt(reservationNumber.replace('T', '')) - currentCallNumber}</span> 組お待ちください
+          {/* 現在の状況表示 */}
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            {/* 現在の整理券番号 */}
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">現在の整理券番号</p>
+              <div className="inline-flex items-center justify-center w-20 h-20 border-4 border-green-300 rounded-full bg-green-50 shadow-md">
+                <span className="text-xl font-bold text-green-600">
+                  {currentTicketNumber}
+                </span>
               </div>
-            )}
+            </div>
+            
+            {/* 現在の呼び出し番号 */}
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">現在の呼び出し番号</p>
+              <div className="inline-flex items-center justify-center w-20 h-20 border-4 border-blue-300 rounded-full bg-blue-50 shadow-md">
+                <span className="text-xl font-bold text-blue-600">
+                  {currentCallNumber}
+                </span>
+              </div>
+            </div>
           </div>
+          
+          {/* 待ち状況 */}
+          {parseInt(reservationNumber.replace('T', '')) - currentCallNumber > 0 && (
+            <div className="text-center mb-8">
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <p className="text-sm text-orange-700">
+                  あと約 <span className="font-bold text-orange-600">{parseInt(reservationNumber.replace('T', '')) - currentCallNumber}</span> 組お待ちください
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* 自動遷移の説明 */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
