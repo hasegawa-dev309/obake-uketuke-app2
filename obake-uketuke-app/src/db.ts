@@ -5,6 +5,11 @@ export const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
     : undefined,
+  // 1日2000人対応の接続プール設定
+  max: 15, // 最大接続数（Free Tier: 20のうち15を使用）
+  min: 2,  // 最小接続数
+  idleTimeoutMillis: 30000, // 30秒でアイドル接続を閉じる
+  connectionTimeoutMillis: 2000, // 2秒で接続タイムアウト
 });
 
 // 接続テスト関数

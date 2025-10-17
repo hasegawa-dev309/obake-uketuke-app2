@@ -8,6 +8,28 @@ const router = express.Router();
 // 呼び出し番号管理用（メモリ）
 let currentNumber = 1;
 let systemPaused = false;
+let lastResetDate = new Date().toISOString().split('T')[0]; // 最後にリセットした日付
+
+// 日付変更チェック関数
+async function checkAndResetIfNeeded() {
+  const today = new Date().toISOString().split('T')[0];
+  
+  if (lastResetDate !== today) {
+    console.log(`📅 日付が変更されました: ${lastResetDate} → ${today}`);
+    console.log("🔄 自動リセットを実行します...");
+    
+    try {
+      // メモリ内のカウンターをリセット
+      currentNumber = 1;
+      systemPaused = false;
+      lastResetDate = today;
+      
+      console.log("✅ 自動リセット完了: 呼び出し番号 = 1");
+    } catch (err) {
+      console.error("❌ 自動リセットエラー:", err);
+    }
+  }
+}
 
 // 整理券一覧取得API（管理者のみ）
 router.get("/", requireAdmin, async (_req, res) => {
@@ -47,6 +69,9 @@ router.get("/", requireAdmin, async (_req, res) => {
 router.post("/", validateReservation, async (req, res) => {
   const { email, count, age, channel = 'web' } = req.body;
   const userAgent = req.headers['user-agent'] || '';
+  
+  // 日付変更チェック
+  await checkAndResetIfNeeded();
   
   console.log(`📥 [POST /api/reservations] email=${email}, count=${count}, age=${age}, channel=${channel}`);
   
@@ -248,13 +273,19 @@ router.get("/stats", requireAdmin, async (_req, res) => {
 });
 
 // 呼び出し番号管理API（管理者のみ）
-router.get("/current-number", requireAdmin, (_req, res) => {
+router.get("/current-number", requireAdmin, async (_req, res) => {
+  // 日付変更チェック
+  await checkAndResetIfNeeded();
+  
   console.log(`🔢 [GET /current-number] 現在: ${currentNumber}`);
   return res.json({ ok: true, data: { currentNumber, systemPaused } });
 });
 
 // 公開：システム状態取得（認証不要）
-router.get("/status", (_req, res) => {
+router.get("/status", async (_req, res) => {
+  // 日付変更チェック
+  await checkAndResetIfNeeded();
+  
   console.log(`🔍 [GET /status] システム状態取得: 番号=${currentNumber}, 停止=${systemPaused}`);
   return res.json({ 
     ok: true, 
@@ -349,71 +380,6 @@ router.post("/clear-all", requireAdmin, async (req, res) => {
 /** 互換: 旧 DELETE を非推奨化 */
 router.delete("/all", requireAdmin, async (_req, res) => {
   res.status(410).json({ ok: false, error: 'deprecated_use_POST_/api/reservations/clear-all' });
-});
-
-/** モックデータを50件追加（管理者のみ） */
-router.post("/mock-data", requireAdmin, async (req, res) => {
-  console.log("[POST /mock-data] モックデータ追加開始");
-  
-  try {
-    const client = await pool.connect();
-    await client.query('BEGIN');
-    
-    // 現在の最大整理券番号を取得
-    const maxResult = await client.query(`
-      SELECT COALESCE(MAX(ticket_no), 0) AS max_no
-      FROM reservations
-      WHERE created_at::date = CURRENT_DATE
-    `);
-    
-    const startTicketNo = maxResult.rows[0].max_no + 1;
-    console.log(`[POST /mock-data] 開始整理券番号: ${startTicketNo}`);
-    
-    // モックデータを50件生成
-    const mockData = [];
-    for (let i = 0; i < 50; i++) {
-      const ticketNo = startTicketNo + i;
-      const email = `mock${String(ticketNo).padStart(3, '0')}@example.com`;
-      const count = Math.floor(Math.random() * 8) + 1; // 1-8名
-      const ages = ['一般', '大学生', '高校生以下'];
-      const age = ages[Math.floor(Math.random() * ages.length)];
-      const channels = ['web', 'mobile', 'tablet'];
-      const channel = channels[Math.floor(Math.random() * channels.length)];
-      
-      mockData.push([ticketNo, email, count, age, channel, 'Mock User Agent']);
-    }
-    
-    // バッチインサート
-    const insertQuery = `
-      INSERT INTO reservations
-        (ticket_no, email, count, age, status, channel, user_agent, created_at)
-      VALUES ($1, $2, $3, $4, '未呼出', $5, $6, NOW() AT TIME ZONE 'Asia/Tokyo')
-    `;
-    
-    for (const data of mockData) {
-      await client.query(insertQuery, data);
-    }
-    
-    await client.query('COMMIT');
-    client.release();
-    
-    console.log(`[POST /mock-data] モックデータ50件追加完了: #${startTicketNo} - #${startTicketNo + 49}`);
-    
-    return res.json({ 
-      ok: true, 
-      message: "モックデータ50件を追加しました",
-      data: { 
-        startTicketNo, 
-        endTicketNo: startTicketNo + 49,
-        count: 50 
-      } 
-    });
-    
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('[POST /mock-data] エラー:', err);
-    return res.status(500).json({ ok: false, error: 'mock_data_failed', details: String(err) });
-  }
 });
 
 export default router;

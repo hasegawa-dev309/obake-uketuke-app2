@@ -241,6 +241,9 @@ export default function ReservationApp() {
               placeholder="example@email.com"
               className="mt-1 w-full rounded-lg border px-3 h-11" 
             />
+            <div className="mt-2 text-xs text-slate-500">
+              ※ メールアドレスは整理券発行の記録のみに使用され、個人情報として保存されます。連絡や通知には使用されません。
+            </div>
           </label>
 
           <label className="block">

@@ -47,10 +47,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 
-// レート制限（公開API用）
+// レート制限（公開API用）- 1日2000人対応
 const publicLimiter = rateLimit({
-  windowMs: 30 * 1000, // 30秒
-  max: 5, // 30秒間に5回まで
+  windowMs: 60 * 1000, // 60秒
+  max: 20, // 60秒間に20回まで（1日2000人対応）
   message: { error: '送信回数が多すぎます。しばらく待ってから再度お試しください。' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -63,14 +63,25 @@ app.use(express.urlencoded({ extended: true }));
 // 静的ファイル配信（フロントエンド）
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// ヘルスチェックAPI（公開）
+// ヘルスチェックAPI（公開）- 1日2000人対応
 app.get('/api/health', async (req, res) => {
   const dbStatus = await testConnection();
   res.json({ 
     ok: true, 
     timestamp: new Date().toISOString(),
     database: dbStatus ? 'connected' : 'disconnected',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    capacity: '2000_users_per_day',
+    rateLimit: '20_requests_per_minute'
+  });
+});
+
+// 追加のヘルスチェック（Herokuスリープ回避用）
+app.get('/ping', (req, res) => {
+  res.json({ 
+    ok: true, 
+    timestamp: new Date().toISOString(),
+    message: 'Server is alive'
   });
 });
 
