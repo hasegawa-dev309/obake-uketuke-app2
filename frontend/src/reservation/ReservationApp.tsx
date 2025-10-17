@@ -18,6 +18,8 @@ export default function ReservationApp() {
   const [ticketNo, setTicketNo] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string>("");
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [currentNumber, setCurrentNumber] = useState<number>(0);
+  const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(0);
 
   // 一時停止状態をAPIから監視
   useEffect(() => {
@@ -37,6 +39,52 @@ export default function ReservationApp() {
     const interval = setInterval(checkPausedStatus, 3000); // 3秒ごとに確認
     return () => clearInterval(interval);
   }, []);
+
+  // 現在の番号を取得（予約完了画面用）
+  useEffect(() => {
+    if (!ticketNo) return; // チケット番号がある場合のみ実行
+
+    const fetchCurrentNumbers = async () => {
+      try {
+        const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
+        
+        // 現在の呼び出し番号を取得
+        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache'
+        });
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setCurrentNumber(statusData.data?.currentNumber || 1);
+        }
+
+        // 現在の整理券番号（カウンター）を取得
+        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache'
+        });
+        
+        if (counterResponse.ok) {
+          const counterData = await counterResponse.json();
+          setCurrentTicketNumber(counterData.data?.counter || 1);
+        }
+      } catch (err) {
+        console.error("現在の番号取得エラー:", err);
+      }
+    };
+    
+    fetchCurrentNumbers();
+    // 定期的に更新（3秒ごと）
+    const interval = setInterval(fetchCurrentNumbers, 3000);
+    return () => clearInterval(interval);
+  }, [ticketNo]);
 
   // 型安全なハンドラ
   const onEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,6 +154,33 @@ export default function ReservationApp() {
               </div>
             )}
           </div>
+
+          {/* 現在の状況表示 */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="text-center">
+              <div className="text-xs text-slate-500 mb-1">現在の整理券番号</div>
+              <div className="text-2xl font-bold text-green-600">
+                #{currentTicketNumber}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-slate-500 mb-1">現在の呼び出し番号</div>
+              <div className="text-2xl font-bold text-blue-600">
+                #{currentNumber}
+              </div>
+            </div>
+          </div>
+
+          {/* 待ち状況 */}
+          {ticketNo && Number(ticketNo) - currentNumber > 0 && (
+            <div className="mb-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <p className="text-sm text-orange-700 text-center">
+                  あと約 <span className="font-bold text-orange-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 mb-6">
             <div className="font-bold mb-2">ご案内</div>
