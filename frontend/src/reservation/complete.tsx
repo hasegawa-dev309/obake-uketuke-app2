@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import "../index.css";
 
 const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
+// Cache busting timestamp
+const CACHE_BUST = Date.now();
 
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
@@ -23,11 +25,12 @@ function CompletePage() {
         console.log('API呼び出し開始...');
         
         // 現在の呼び出し番号を取得
-        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
+        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status?t=${CACHE_BUST}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
-          credentials: 'omit'
+          credentials: 'omit',
+          cache: 'no-cache'
         });
         
         console.log('Status response:', statusResponse.status);
@@ -40,11 +43,12 @@ function CompletePage() {
         }
 
         // 現在の整理券番号（カウンター）を取得
-        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
+        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter?t=${CACHE_BUST}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
-          credentials: 'omit'
+          credentials: 'omit',
+          cache: 'no-cache'
         });
         
         console.log('Counter response:', counterResponse.status);
@@ -94,8 +98,13 @@ function CompletePage() {
           )}
           
           {/* デバッグ情報 */}
-          <div className="text-xs text-gray-400 mb-2">
-            Debug: ticketNo={ticketNo}, currentNumber={currentNumber}, currentTicketNumber={currentTicketNumber}
+          <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-4">
+            <div className="text-sm text-yellow-800 font-bold">
+              🔧 デバッグ情報 (Cache Bust: {CACHE_BUST})
+            </div>
+            <div className="text-xs text-yellow-700">
+              ticketNo: {ticketNo || 'なし'} | currentNumber: {currentNumber} | currentTicketNumber: {currentTicketNumber}
+            </div>
           </div>
           
           {/* 現在の状況表示 - 常に表示 */}
