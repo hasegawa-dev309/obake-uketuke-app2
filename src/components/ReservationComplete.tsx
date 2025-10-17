@@ -3,15 +3,43 @@ import { useNavigate } from 'react-router-dom'
 import { useGlobalReservations } from '../hooks/useGlobalReservations'
 import { CheckCircleIcon, ClockIcon, HomeIcon, PlusIcon } from '@heroicons/react/24/outline'
 
+const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
+
 export function ReservationComplete() {
   const navigate = useNavigate()
   const { reservations } = useGlobalReservations()
   const [countdown, setCountdown] = useState(10)
+  const [currentCallNumber, setCurrentCallNumber] = useState<number>(1)
   
   // 最新の予約情報を取得
   const latestReservation = reservations[0] // 最新の予約
   const reservationNumber = latestReservation?.reservation_number || 'T001'
   const message = '整理券が正常に発行されました！'
+
+  // 現在の呼び出し番号を取得
+  useEffect(() => {
+    const fetchCurrentNumber = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/reservations/status`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentCallNumber(data.data?.currentNumber || 1);
+        }
+      } catch (err) {
+        console.error("現在の番号取得エラー:", err);
+      }
+    };
+    
+    fetchCurrentNumber();
+    // 定期的に更新（3秒ごと）
+    const interval = setInterval(fetchCurrentNumber, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // カウントダウンと自動遷移
   useEffect(() => {
@@ -83,14 +111,19 @@ export function ReservationComplete() {
             </p>
           </div>
           
-          {/* 現在の番号（モック） */}
+          {/* 現在の呼び出し番号 */}
           <div className="text-center mb-8">
             <p className="text-sm text-gray-600 mb-2">現在の呼び出し番号</p>
             <div className="inline-flex items-center justify-center w-24 h-24 border-4 border-blue-300 rounded-full bg-blue-50 shadow-md">
               <span className="text-2xl font-bold text-blue-600">
-                {Math.max(1, parseInt(reservationNumber.replace('T', '')) - 5)}
+                {currentCallNumber}
               </span>
             </div>
+            {parseInt(reservationNumber.replace('T', '')) - currentCallNumber > 0 && (
+              <div className="mt-3 text-sm text-gray-500">
+                あと約 <span className="font-bold text-orange-600">{parseInt(reservationNumber.replace('T', '')) - currentCallNumber}</span> 組お待ちください
+              </div>
+            )}
           </div>
           
           {/* 自動遷移の説明 */}
