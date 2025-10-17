@@ -6,8 +6,8 @@ const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
 
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
-  const [currentNumber, setCurrentNumber] = useState<number>(1);
-  const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(1);
+  const [currentNumber, setCurrentNumber] = useState<number>(0);
+  const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(0);
 
   useEffect(() => {
     // URLパラメータから整理券番号を取得
@@ -26,7 +26,8 @@ function CompletePage() {
         const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          mode: 'cors'
+          mode: 'cors',
+          credentials: 'omit'
         });
         
         console.log('Status response:', statusResponse.status);
@@ -34,13 +35,16 @@ function CompletePage() {
           const statusData = await statusResponse.json();
           console.log('Status data:', statusData);
           setCurrentNumber(statusData.data?.currentNumber || 1);
+        } else {
+          console.error('Status API error:', statusResponse.status, statusResponse.statusText);
         }
 
         // 現在の整理券番号（カウンター）を取得
         const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          mode: 'cors'
+          mode: 'cors',
+          credentials: 'omit'
         });
         
         console.log('Counter response:', counterResponse.status);
@@ -48,6 +52,8 @@ function CompletePage() {
           const counterData = await counterResponse.json();
           console.log('Counter data:', counterData);
           setCurrentTicketNumber(counterData.data?.counter || 1);
+        } else {
+          console.error('Counter API error:', counterResponse.status, counterResponse.statusText);
         }
         
         console.log('API呼び出し完了');
