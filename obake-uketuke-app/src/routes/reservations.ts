@@ -24,7 +24,7 @@ router.get("/", requireAdmin, async (_req, res) => {
         status,
         channel,
         user_agent AS "userAgent",
-        TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt",
+        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
         called_at AS "calledAt"
       FROM reservations 
       WHERE created_at::date = CURRENT_DATE
@@ -69,11 +69,11 @@ router.post("/", validateReservation, async (req, res) => {
     const ticketNo = nextResult.rows[0].ticket_no;
     console.log(`🎫 [POST] 次の整理券番号: ${ticketNo}`);
     
-    // INSERT実行
+    // INSERT実行（日本時間で保存）
     const inserted = await client.query(`
       INSERT INTO reservations
         (ticket_no, email, count, age, status, channel, user_agent, created_at)
-      VALUES ($1, $2, $3, $4, '未呼出', $5, $6, NOW())
+      VALUES ($1, $2, $3, $4, '未呼出', $5, $6, NOW() AT TIME ZONE 'Asia/Tokyo')
       RETURNING 
         id,
         ticket_no AS "ticketNo",
@@ -83,7 +83,7 @@ router.post("/", validateReservation, async (req, res) => {
         status,
         channel,
         user_agent AS "userAgent",
-        TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt"
+        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
     `, [ticketNo, email, count, age, channel, userAgent]);
     
     await client.query('COMMIT');
@@ -129,7 +129,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     
     const result = await pool.query(
       `UPDATE reservations 
-       SET status = $1, called_at = NOW()
+       SET status = $1, called_at = NOW() AT TIME ZONE 'Asia/Tokyo'
        WHERE id = $2::bigint OR ticket_no = $2::bigint
        RETURNING 
          id,
@@ -139,7 +139,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
          age,
          status,
          channel,
-         TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tokyo', 'YYYY/MM/DD HH24:MI') AS "createdAt"`,
+         TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"`,
       [status, id]
     );
     
