@@ -7,6 +7,7 @@ const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
   const [currentNumber, setCurrentNumber] = useState<number>(1);
+  const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(1);
 
   useEffect(() => {
     // URLパラメータから整理券番号を取得
@@ -14,27 +15,40 @@ function CompletePage() {
     const ticket = urlParams.get('ticket') || '';
     setTicketNo(ticket);
 
-    // APIから現在の呼び出し番号を取得
-    const fetchCurrentNumber = async () => {
+    // APIから現在の呼び出し番号と整理券番号を取得
+    const fetchCurrentNumbers = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/reservations/current-number`, {
+        // 現在の呼び出し番号を取得
+        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors'
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentNumber(data.currentNumber || 1);
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setCurrentNumber(statusData.data?.currentNumber || 1);
+        }
+
+        // 現在の整理券番号（カウンター）を取得
+        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'cors'
+        });
+        
+        if (counterResponse.ok) {
+          const counterData = await counterResponse.json();
+          setCurrentTicketNumber(counterData.data?.counter || 1);
         }
       } catch (err) {
         console.error("現在の番号取得エラー:", err);
       }
     };
     
-    fetchCurrentNumber();
+    fetchCurrentNumbers();
     // 定期的に更新（3秒ごと）
-    const interval = setInterval(fetchCurrentNumber, 3000);
+    const interval = setInterval(fetchCurrentNumbers, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -59,12 +73,23 @@ function CompletePage() {
             <div className="text-5xl font-bold text-violet-600 mb-4">
               #{ticketNo}
             </div>
-            <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
-              <div>
-                <span className="text-gray-500">現在の呼び出し番号: </span>
-                <span className="font-bold text-violet-700 text-lg">#{currentNumber}</span>
+            
+            {/* 現在の状況表示 */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-xs text-gray-500 mb-1">現在の整理券番号</div>
+                <div className="text-2xl font-bold text-green-600">
+                  #{currentTicketNumber}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-500 mb-1">現在の呼び出し番号</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  #{currentNumber}
+                </div>
               </div>
             </div>
+            
             {Number(ticketNo) - currentNumber > 0 && (
               <div className="mt-3 text-sm text-gray-500">
                 あと約 <span className="font-bold text-violet-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
