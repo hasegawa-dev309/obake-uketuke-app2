@@ -13,6 +13,8 @@ function CompletePage() {
     // URLパラメータから整理券番号を取得
     const urlParams = new URLSearchParams(window.location.search);
     const ticket = urlParams.get('ticket') || '';
+    console.log('URL params:', window.location.search);
+    console.log('Ticket from URL:', ticket);
     setTicketNo(ticket);
 
     // APIから現在の呼び出し番号と整理券番号を取得
@@ -67,36 +69,38 @@ function CompletePage() {
           整理券が正常に発行されました！
         </p>
 
-        {ticketNo && (
-          <div className="mb-6">
-            <div className="text-sm text-gray-500 mb-2">あなたの整理券番号</div>
-            <div className="text-5xl font-bold text-violet-600 mb-4">
-              #{ticketNo}
-            </div>
-            
-            {/* 現在の状況表示 */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">現在の整理券番号</div>
-                <div className="text-2xl font-bold text-green-600">
-                  #{currentTicketNumber}
-                </div>
+        <div className="mb-6">
+          {ticketNo && (
+            <>
+              <div className="text-sm text-gray-500 mb-2">あなたの整理券番号</div>
+              <div className="text-5xl font-bold text-violet-600 mb-4">
+                #{ticketNo}
               </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">現在の呼び出し番号</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  #{currentNumber}
-                </div>
+            </>
+          )}
+          
+          {/* 現在の状況表示 - 常に表示 */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-xs text-gray-500 mb-1">現在の整理券番号</div>
+              <div className="text-2xl font-bold text-green-600">
+                #{currentTicketNumber}
               </div>
             </div>
-            
-            {Number(ticketNo) - currentNumber > 0 && (
-              <div className="mt-3 text-sm text-gray-500">
-                あと約 <span className="font-bold text-violet-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
+            <div className="text-center">
+              <div className="text-xs text-gray-500 mb-1">現在の呼び出し番号</div>
+              <div className="text-2xl font-bold text-blue-600">
+                #{currentNumber}
               </div>
-            )}
+            </div>
           </div>
-        )}
+          
+          {ticketNo && Number(ticketNo) - currentNumber > 0 && (
+            <div className="mt-3 text-sm text-gray-500">
+              あと約 <span className="font-bold text-violet-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
+            </div>
+          )}
+        </div>
 
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <p className="text-red-700 text-sm font-medium">
