@@ -171,38 +171,17 @@ export default function ReservationApp() {
             </div>
           </div>
 
-          {/* 待ち状況 */}
-          {ticketNo && Number(ticketNo) - currentNumber > 0 && (
-            <div className="mb-6">
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <p className="text-sm text-orange-700 text-center">
-                  あと約 <span className="font-bold text-orange-600">{Number(ticketNo) - currentNumber}</span> 組お待ちください
-                </p>
-              </div>
-            </div>
-          )}
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 mb-6">
             <div className="font-bold mb-2">ご案内</div>
-            <div className="text-sm">番号が呼ばれましたら、受付にお越しください。</div>
+            <div className="text-sm">20組前になったら受付会場にお越しください。</div>
           </div>
 
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 mb-6">
             <div className="font-bold mb-2 text-center">重要</div>
-            <div className="text-sm text-center">この画面は受付で使用するため、スクリーンショットをお願いいたします。</div>
+            <div className="text-sm text-center">この画面は受付で使用するため、ブラウザのタブは削除しないでください。</div>
           </div>
 
-          <button
-            onClick={() => {
-              setTicketNo(null);
-              setEmail("");
-              setCount(1);
-              setAge("一般");
-            }}
-            className="w-full bg-violet-600 hover:bg-violet-700 text-white py-3 rounded-xl font-medium transition-colors"
-          >
-            新しく予約する
-          </button>
         </div>
       </div>
     );
