@@ -179,7 +179,7 @@ export default function ReservationApp() {
 
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 mb-6">
             <div className="font-bold mb-2 text-center">重要</div>
-            <div className="text-sm text-center">この画面は受付で使用するため、ブラウザのタブは削除しないでください。</div>
+            <div className="text-sm text-center">この画面は受付で使用するため、ブラウザのタブは削除しないでください。また呼び出し番号はリアルタイムで反映されるためリロードは行わないでください。</div>
           </div>
 
         </div>
