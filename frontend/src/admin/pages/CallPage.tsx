@@ -17,6 +17,16 @@ export default function CallPage(){
   const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
+  const openMail = (to: string, subject: string, body: string, from: string) => {
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(from)}`;
+    const newWin = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
+    if (!newWin) {
+      // ポップアップブロック時は mailto にフォールバック
+      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailtoUrl;
+    }
+  };
+
   // APIから現在の番号とシステム状態を取得（認証付き）
   useEffect(() => {
     const loadCurrentNumber = async () => {
@@ -96,9 +106,8 @@ export default function CallPage(){
 —
 第61回 東洋大学 白山祭　お化け屋敷スタッフ一同`;
     
-    // Gmailの作成画面を開く
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
-    window.open(gmailUrl, '_blank');
+    // Gmail作成を開く（失敗時はmailto）
+    openMail(toEmail, subject, body, fromEmail);
   };
 
   const sendEmailToUpcomingNumbers = () => {
@@ -132,8 +141,7 @@ export default function CallPage(){
 第61回 東洋大学 白山祭　お化け屋敷スタッフ一同`;
       
       setTimeout(() => {
-        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ticket.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(fromEmail)}`;
-        window.open(gmailUrl, '_blank');
+        openMail(ticket.email, subject, body, fromEmail);
       }, index * 500); // 0.5秒ずつ遅延させて開く
     });
   };

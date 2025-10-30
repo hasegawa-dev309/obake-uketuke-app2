@@ -6,6 +6,7 @@ import { postReservation, getSystemStatus } from "../lib/api";
 type Age = "一般" | "大学生" | "高校生以下";
 
 export default function ReservationApp() {
+  const STORAGE_KEY = "obake_last_reservation_v1";
   const nowStr = useMemo(() => new Date().toLocaleString("ja-JP", {
     year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"
   }), []);
@@ -17,6 +18,20 @@ export default function ReservationApp() {
   const [error, setError] = useState<string | null>(null);
   const [ticketNo, setTicketNo] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string>("");
+  // 予約完了画面の復元（フロントのみ）
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved) as { ticketNo?: string; createdAt?: string };
+        if (data?.ticketNo) {
+          setTicketNo(data.ticketNo);
+          if (data?.createdAt) setCreatedAt(data.createdAt);
+        }
+      }
+    } catch {}
+  }, []);
+
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [currentNumber, setCurrentNumber] = useState<number>(0);
   const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(0);
@@ -126,6 +141,10 @@ export default function ReservationApp() {
       const ticketNumber = result.data.ticketNo || result.data.id;
       setTicketNo(ticketNumber);
       setCreatedAt(result.data.createdAt || "");
+      // 完了画面を復元できるようローカルに保存
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ticketNo: String(ticketNumber), createdAt: result.data.createdAt || "" }));
+      } catch {}
       
     } catch (err: any) {
       console.error("❌ 予約エラー:", err);
