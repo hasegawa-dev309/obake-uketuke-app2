@@ -1,0 +1,1 @@
+import{c as t,j as r}from"./index-C7lxWjak.js";import{R as e}from"./ReservationApp-BbcHLRmZ.js";import"./api-BO6s4zEV.js";const o=document.getElementById("reservation-root");o&&t.createRoot(o).render(r.jsx(e,{}));

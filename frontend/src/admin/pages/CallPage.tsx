@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
 import { fetchReservations, getCurrentNumber, updateCurrentNumber } from "../../lib/api";
 
@@ -16,14 +16,36 @@ export default function CallPage(){
   const [current, setCurrent] = useState<number>(1);
   const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const lastManualChangeAtRef = useRef<number>(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdIntervalRef = useRef<number | null>(null);
 
   const openMail = (to: string, subject: string, body: string, from: string) => {
+    const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(from)}`;
-    const newWin = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
-    if (!newWin) {
-      // ポップアップブロック時は mailto にフォールバック
-      const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.location.href = mailtoUrl;
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // モバイルは既定メールアプリを優先（Gmailアカウント固定は不可）
+      try {
+        const a = document.createElement('a');
+        a.href = mailtoUrl;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch {
+        window.location.href = mailtoUrl;
+      }
+      return;
+    }
+
+    // デスクトップは Gmail を優先（authuser で送信元アカウントを固定）
+    const win = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      // ブロック時は同一タブ遷移
+      window.location.href = gmailUrl;
     }
   };
 
@@ -34,8 +56,12 @@ export default function CallPage(){
         const result = await getCurrentNumber();
         
         if (result.ok && result.data) {
-          setCurrent(result.data.currentNumber || 1);
-          setPaused(result.data.systemPaused || false);
+          const now = Date.now();
+          const isRecentlyChanged = now - lastManualChangeAtRef.current < 1500; // 手動変更から1.5秒以内は上書きしない
+          if (!isRecentlyChanged) {
+            setCurrent(result.data.currentNumber || 1);
+            setPaused(result.data.systemPaused || false);
+          }
         }
       } catch (err) {
         console.error("❌ 現在の番号取得エラー:", err);
@@ -43,22 +69,48 @@ export default function CallPage(){
     };
     
     loadCurrentNumber();
-    const interval = setInterval(loadCurrentNumber, 3000);
+    const interval = setInterval(loadCurrentNumber, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // currentまたはpausedが変更されたらAPIに保存（認証付き）
+  // current/paused の保存はデバウンスしてネットワーク往復を間引く
   useEffect(() => {
-    const saveCurrentNumber = async () => {
+    const timer = setTimeout(async () => {
       try {
         await updateCurrentNumber(current, paused);
       } catch (err) {
         console.error("❌ 現在の番号保存エラー:", err);
       }
-    };
-    
-    saveCurrentNumber();
+    }, 150);
+    return () => clearTimeout(timer);
   }, [current, paused]);
+
+  const markManualChange = () => {
+    lastManualChangeAtRef.current = Date.now();
+  };
+
+  const startHold = (delta: number) => {
+    markManualChange();
+    setCurrent(n => Math.max(1, n + delta));
+    // 初回遅延後に連続リピート
+    holdTimerRef.current = window.setTimeout(() => {
+      holdIntervalRef.current = window.setInterval(() => {
+        markManualChange();
+        setCurrent(n => Math.max(1, n + delta));
+      }, 60);
+    }, 250);
+  };
+
+  const stopHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+  };
 
   // 整理券データをAPIから取得（認証付き）
   useEffect(() => {
@@ -174,7 +226,12 @@ export default function CallPage(){
       <div className="flex justify-center items-center gap-8 mb-8">
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => Math.max(1, n - 1))}
+          onMouseDown={() => startHold(-1)}
+          onMouseUp={stopHold}
+          onMouseLeave={stopHold}
+          onTouchStart={() => startHold(-1)}
+          onTouchEnd={stopHold}
+          onClick={() => { markManualChange(); setCurrent(n => Math.max(1, n - 1)); }}
         >
           ◀
         </button>
@@ -185,7 +242,12 @@ export default function CallPage(){
 
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => n + 1)}
+          onMouseDown={() => startHold(1)}
+          onMouseUp={stopHold}
+          onMouseLeave={stopHold}
+          onTouchStart={() => startHold(1)}
+          onTouchEnd={stopHold}
+          onClick={() => { markManualChange(); setCurrent(n => n + 1); }}
         >
           ▶
         </button>

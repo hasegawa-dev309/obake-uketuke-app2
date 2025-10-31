@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { API_CONFIG } from "../../config/api.config";
 
 type Ticket = { 
   id: string; 
@@ -10,18 +11,84 @@ type Ticket = {
   ticketNo?: string;
 };
 
+type SystemStatus = {
+  current_call_number: number;
+  is_paused: boolean;
+  notice?: string;
+};
+
 export default function CallPage(){
   const [current, setCurrent] = useState<number>(Number(localStorage.getItem("current_number") ?? "1"));
   const [paused, setPaused] = useState(localStorage.getItem("system_paused") === "true");
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  // ポーリング間隔を動的に管理
+  const [pollInterval, setPollInterval] = useState<number>(5000); // 通常は5秒
+  // 操作直後の高速ポーリングタイマー
+  const fastPollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 楽観的更新のロールバック用
+  const previousNumberRef = useRef<number>(Number(localStorage.getItem("current_number") ?? "1"));
 
+  // 現在の呼び出し番号をlocalStorageに保存
   useEffect(() => {
     localStorage.setItem("current_number", String(current));
+    previousNumberRef.current = current;
   }, [current]);
 
   useEffect(() => {
     localStorage.setItem("system_paused", String(paused));
   }, [paused]);
+
+  // /api/public/status をポーリングして呼び出し番号を取得
+  useEffect(() => {
+    let alive = true;
+
+    const fetchStatus = async () => {
+      try {
+        // キャッシュ無効化のためtimestampを付与
+        const eventDate = new Date().toISOString().split('T')[0];
+        const url = `${API_CONFIG.baseURL}/public/status?date=${eventDate}&v=${Date.now()}`;
+        
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: API_CONFIG.headers,
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const data: SystemStatus = await res.json();
+        
+        if (alive) {
+          // サーバーの値と同期（楽観的更新中でない場合のみ）
+          setCurrent(prev => {
+            // 楽観的更新後の値と大きく異なる場合のみ更新
+            const diff = Math.abs(data.current_call_number - prev);
+            // 2以上差がある場合はサーバー優先で更新（楽観的更新が反映されなかった場合）
+            if (diff >= 2) {
+              return data.current_call_number;
+            }
+            return prev;
+          });
+          setPaused(data.is_paused);
+        }
+      } catch (err) {
+        console.error("呼び出し番号の取得エラー:", err);
+        // エラー時はログのみ（UIは維持）
+      }
+    };
+
+    // 初回取得
+    fetchStatus();
+
+    // ポーリング開始
+    const intervalId = setInterval(fetchStatus, pollInterval);
+
+    return () => {
+      alive = false;
+      clearInterval(intervalId);
+    };
+  }, [pollInterval]);
 
   // 整理券データを定期的に取得
   useEffect(() => {
@@ -33,6 +100,60 @@ export default function CallPage(){
     const interval = setInterval(updateTickets, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // 呼び出し番号を進める/戻す（オプティミスティックUI更新）
+  const handleCallNumberChange = async (direction: 'next' | 'prev') => {
+    // 楽観的更新：即座にUIを更新
+    const previousValue = current;
+    const newValue = direction === 'next' 
+      ? current + 1 
+      : Math.max(1, current - 1);
+    
+    // UIを即座に更新（APIレスポンスを待たない）
+    setCurrent(newValue);
+    previousNumberRef.current = previousValue;
+
+    // 高速ポーリングを開始（操作直後の3秒間）
+    if (fastPollTimerRef.current) {
+      clearTimeout(fastPollTimerRef.current);
+    }
+    setPollInterval(400); // 400ms間隔に短縮
+    fastPollTimerRef.current = setTimeout(() => {
+      setPollInterval(5000); // 3秒後に通常間隔に戻す
+      fastPollTimerRef.current = null;
+    }, 3000);
+
+    // API呼び出し
+    try {
+      const url = `${API_CONFIG.baseURL}/call/next`;
+      const method = direction === 'next' ? 'POST' : 'POST';
+      const body = direction === 'next' 
+        ? JSON.stringify({ action: 'next' })
+        : JSON.stringify({ action: 'prev' });
+
+      const res = await fetch(url, {
+        method,
+        headers: API_CONFIG.headers,
+        body: method === 'POST' ? body : undefined,
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      // サーバーから返された値を確認（必要に応じて同期）
+      if (data.current_call_number !== undefined && data.current_call_number !== newValue) {
+        setCurrent(data.current_call_number);
+      }
+    } catch (err) {
+      // API呼び出し失敗時はロールバック
+      console.error("呼び出し番号の更新に失敗:", err);
+      setCurrent(previousValue);
+      previousNumberRef.current = previousValue;
+      alert("呼び出し番号の更新に失敗しました。ネットワークを確認してください。");
+    }
+  };
 
   const handleReload = () => {
     const savedNumber = Number(localStorage.getItem("current_number") ?? "1");
@@ -103,8 +224,9 @@ export default function CallPage(){
       {/* 操作ボタン */}
       <div className="flex justify-center items-center gap-8 mb-8">
         <button 
-          className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => Math.max(1, n - 1))}
+          className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => handleCallNumberChange('prev')}
+          disabled={current <= 1}
         >
           ◀
         </button>
@@ -114,8 +236,8 @@ export default function CallPage(){
         </div>
 
         <button 
-          className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => n + 1)}
+          className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => handleCallNumberChange('next')}
         >
           ▶
         </button>
