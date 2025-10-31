@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { CallStatus } from '../../types'
 import { useGlobalReservations } from '../../hooks/useGlobalReservations'
 import { MegaphoneIcon, EnvelopeIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon, PauseIcon, ArrowPathIcon, PaperAirplaneIcon, XMarkIcon, PhoneIcon, ClockIcon } from '@heroicons/react/24/outline'
-import { API_CONFIG } from '../../config/api.config'
 
 export function AdminCall() {
   const [callStatus, setCallStatus] = useState<CallStatus>({
@@ -18,12 +17,6 @@ export function AdminCall() {
     email: '',
     message: ''
   })
-  // ポーリング間隔を動的に管理
-  const [pollInterval, setPollInterval] = useState<number>(5000); // 通常は5秒
-  // 操作直後の高速ポーリングタイマー
-  const fastPollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  // 楽観的更新のロールバック用
-  const previousNumberRef = useRef<number>(1);
 
   const { reservations } = useGlobalReservations()
 
@@ -35,57 +28,6 @@ export function AdminCall() {
       notice: '通常営業中'
     })
   }, [])
-
-  // /api/public/status をポーリングして呼び出し番号を取得
-  useEffect(() => {
-    let alive = true;
-
-    const fetchStatus = async () => {
-      try {
-        // キャッシュ無効化のためtimestampを付与
-        const eventDate = new Date().toISOString().split('T')[0];
-        const url = `${API_CONFIG.baseURL}/public/status?date=${eventDate}&v=${Date.now()}`;
-        
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: API_CONFIG.headers,
-        });
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data: CallStatus = await res.json();
-        
-        if (alive) {
-          // サーバーの値と同期（楽観的更新中でない場合のみ）
-          setCallStatus(prev => {
-            const diff = Math.abs(data.current_call_number - prev.current_call_number);
-            // 2以上差がある場合はサーバー優先で更新
-            if (diff >= 2) {
-              return { ...data, notice: data.notice || prev.notice };
-            }
-            return { ...prev, current_call_number: data.current_call_number, is_paused: data.is_paused };
-          });
-          setIsPaused(data.is_paused);
-        }
-      } catch (err) {
-        console.error("呼び出し番号の取得エラー:", err);
-        // エラー時はログのみ（UIは維持）
-      }
-    };
-
-    // 初回取得
-    fetchStatus();
-
-    // ポーリング開始
-    const intervalId = setInterval(fetchStatus, pollInterval);
-
-    return () => {
-      alive = false;
-      clearInterval(intervalId);
-    };
-  }, [pollInterval]);
 
   const fetchCallStatus = async () => {
     setIsLoading(true)
@@ -101,56 +43,21 @@ export function AdminCall() {
   }
 
   const updateCallNumber = async (direction: 'prev' | 'next') => {
-    // 楽観的更新：即座にUIを更新
-    const previousValue = callStatus.current_call_number;
-    const newNumber = direction === 'next' 
-      ? callStatus.current_call_number + 1 
-      : Math.max(1, callStatus.current_call_number - 1)
-    
-    // UIを即座に更新（APIレスポンスを待たない）
-    setCallStatus(prev => ({ ...prev, current_call_number: newNumber }))
-    previousNumberRef.current = previousValue;
-    setError(null); // エラーをクリア
-
-    // 高速ポーリングを開始（操作直後の3秒間）
-    if (fastPollTimerRef.current) {
-      clearTimeout(fastPollTimerRef.current);
-    }
-    setPollInterval(400); // 400ms間隔に短縮
-    fastPollTimerRef.current = setTimeout(() => {
-      setPollInterval(5000); // 3秒後に通常間隔に戻す
-      fastPollTimerRef.current = null;
-    }, 3000);
-
-    // API呼び出し
+    setIsLoading(true)
     try {
-      const url = `${API_CONFIG.baseURL}/call/next`;
-      const body = direction === 'next' 
-        ? JSON.stringify({ action: 'next' })
-        : JSON.stringify({ action: 'prev' });
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: API_CONFIG.headers,
-        body,
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      // サーバーから返された値を確認（必要に応じて同期）
-      if (data.current_call_number !== undefined && data.current_call_number !== newNumber) {
-        setCallStatus(prev => ({ ...prev, current_call_number: data.current_call_number }));
-      }
+      const newNumber = direction === 'next' 
+        ? callStatus.current_call_number + 1 
+        : Math.max(1, callStatus.current_call_number - 1)
+      
+      // ローカル状態を更新
+      setCallStatus(prev => ({ ...prev, current_call_number: newNumber }))
+      setError(null) // エラーをクリア
+      
+      await new Promise(resolve => setTimeout(resolve, 300)) // ローディング効果
     } catch (err) {
-      // API呼び出し失敗時はロールバック
-      console.error("呼び出し番号の更新に失敗:", err);
-      setCallStatus(prev => ({ ...prev, current_call_number: previousValue }));
-      previousNumberRef.current = previousValue;
       setError('呼び出し番号の更新に失敗しました')
-      alert("呼び出し番号の更新に失敗しました。ネットワークを確認してください。");
+    } finally {
+      setIsLoading(false)
     }
   }
 
