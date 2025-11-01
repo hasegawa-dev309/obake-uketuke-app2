@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
 import { fetchReservations, getCurrentNumber, updateCurrentNumber } from "../../lib/api";
+import { API_CONFIG } from "../../config/api.config";
+
+// ポーリング間隔の定数
+const NORMAL_MS = 5000;  // 通常時は5秒
+const BURST_MS = 250;   // 操作直後の高速間隔
 
 type Ticket = { 
   id: string; 
@@ -16,6 +21,10 @@ export default function CallPage(){
   const [current, setCurrent] = useState<number>(1);
   const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const holdRef = useRef(false); // 一時ホールドフラグ（操作直後の上書き防止）
+  const pollStopRef = useRef(false); // ポーリング停止フラグ
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null); // ポーリングタイマー
+  const currentPollIntervalRef = useRef<number>(NORMAL_MS); // 現在のポーリング間隔
 
   const openMail = (to: string, subject: string, body: string, from: string) => {
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(from)}`;
@@ -25,6 +34,43 @@ export default function CallPage(){
       const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       window.location.href = mailtoUrl;
     }
+  };
+
+  // ステータス取得（即時tick対応）
+  const tick = async (date: string) => {
+    try {
+      const API_BASE = API_CONFIG.baseURL.replace(/\/api$/, '');
+      const res = await fetch(`${API_BASE}/api/reservations/status?date=${date}&v=${Date.now()}`, { 
+        cache: 'no-store' 
+      });
+      const st = await res.json();
+      
+      if (!pollStopRef.current && !holdRef.current && st.ok && st.data) {
+        setCurrent(st.data.currentNumber || 1);
+        setPaused(st.data.systemPaused || false);
+      }
+    } catch (err) {
+      console.error("❌ ステータス取得エラー:", err);
+    }
+  };
+
+  // 自己再帰setTimeoutによるポーリング
+  const startPolling = (interval: number = NORMAL_MS) => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+
+    currentPollIntervalRef.current = interval;
+    const date = new Date().toISOString().split('T')[0];
+
+    const loop = async () => {
+      if (pollStopRef.current) return;
+      await tick(date);
+      pollTimeoutRef.current = setTimeout(loop, currentPollIntervalRef.current);
+    };
+
+    loop();
   };
 
   // APIから現在の番号とシステム状態を取得（認証付き）
@@ -43,8 +89,16 @@ export default function CallPage(){
     };
     
     loadCurrentNumber();
-    const interval = setInterval(loadCurrentNumber, 3000);
-    return () => clearInterval(interval);
+    pollStopRef.current = false;
+    startPolling(NORMAL_MS);
+    
+    return () => {
+      pollStopRef.current = true;
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+        pollTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   // currentまたはpausedが変更されたらAPIに保存（認証付き）
@@ -174,7 +228,35 @@ export default function CallPage(){
       <div className="flex justify-center items-center gap-8 mb-8">
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => Math.max(1, n - 1))}
+          onClick={async () => {
+            // 楽観更新
+            const newValue = Math.max(1, current - 1);
+            setCurrent(newValue);
+            holdRef.current = true;
+
+            // 即時tick
+            const date = new Date().toISOString().split('T')[0];
+            tick(date);
+
+            // バーストポーリング
+            startPolling(BURST_MS);
+            setTimeout(() => {
+              startPolling(NORMAL_MS);
+            }, 3000);
+
+            try {
+              await updateCurrentNumber(newValue, paused);
+              setTimeout(() => {
+                holdRef.current = false;
+                tick(date);
+              }, 800);
+            } catch (err: any) {
+              console.error("❌ 呼び出し番号更新エラー:", err);
+              holdRef.current = false;
+              setCurrent(current);
+              alert("呼び出し番号の更新に失敗しました");
+            }
+          }}
         >
           ◀
         </button>
@@ -185,7 +267,37 @@ export default function CallPage(){
 
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={() => setCurrent(n => n + 1)}
+          onClick={async () => {
+            // 楽観更新（即時反映、体感0秒）
+            const newValue = current + 1;
+            setCurrent(newValue);
+            holdRef.current = true;
+
+            // 即時tickで他端末も追従
+            const date = new Date().toISOString().split('T')[0];
+            tick(date);
+
+            // バーストポーリング：数秒だけ高速
+            startPolling(BURST_MS);
+            setTimeout(() => {
+              startPolling(NORMAL_MS);
+            }, 3000);
+
+            try {
+              await updateCurrentNumber(newValue, paused);
+              // 800msはサーバー値で上書きしない（古いレスが来ても跳ねる）
+              setTimeout(() => {
+                holdRef.current = false;
+                tick(date);
+              }, 800);
+            } catch (err: any) {
+              // 失敗時はロールバック
+              console.error("❌ 呼び出し番号更新エラー:", err);
+              holdRef.current = false;
+              setCurrent(current);
+              alert("呼び出し番号の更新に失敗しました");
+            }
+          }}
         >
           ▶
         </button>

@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { CalendarIcon, ClockIcon, TicketIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { Ghost } from "phosphor-react";
 import { postReservation, getSystemStatus } from "../lib/api";
+import { API_CONFIG } from "../config/api.config";
 
 type Age = "一般" | "大学生" | "高校生以下";
 
@@ -46,15 +47,16 @@ export default function ReservationApp() {
 
     const fetchCurrentNumbers = async () => {
       try {
-        const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
+        const API_BASE = API_CONFIG.baseURL.replace(/\/api$/, '');
+        const date = new Date().toISOString().split('T')[0];
         
-        // 現在の呼び出し番号を取得
-        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status`, {
+        // 現在の呼び出し番号を取得（キャッシュ無効化）
+        const statusResponse = await fetch(`${API_BASE}/api/reservations/status?date=${date}&v=${Date.now()}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
           credentials: 'omit',
-          cache: 'no-cache'
+          cache: 'no-store'
         });
         
         if (statusResponse.ok) {
@@ -62,13 +64,13 @@ export default function ReservationApp() {
           setCurrentNumber(statusData.data?.currentNumber || 1);
         }
 
-        // 現在の整理券番号（カウンター）を取得
-        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter`, {
+        // 現在の整理券番号（カウンター）を取得（キャッシュ無効化）
+        const counterResponse = await fetch(`${API_BASE}/api/reservations/counter?date=${date}&v=${Date.now()}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
           credentials: 'omit',
-          cache: 'no-cache'
+          cache: 'no-store'
         });
         
         if (counterResponse.ok) {

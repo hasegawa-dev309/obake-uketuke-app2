@@ -286,6 +286,11 @@ router.get("/status", async (_req, res) => {
   // 日付変更チェック
   await checkAndResetIfNeeded();
   
+  // キャッシュ無効化ヘッダー
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
   console.log(`🔍 [GET /status] システム状態取得: 番号=${currentNumber}, 停止=${systemPaused}`);
   return res.json({ 
     ok: true, 

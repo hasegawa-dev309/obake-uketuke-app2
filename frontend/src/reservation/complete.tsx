@@ -1,10 +1,9 @@
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import "../index.css";
+import { API_CONFIG } from "../config/api.config";
 
-const API_BASE_URL = 'https://obake-uketuke-app-ae91e2b5463a.herokuapp.com/api';
-// Cache busting timestamp
-const CACHE_BUST = Date.now();
+const API_BASE = API_CONFIG.baseURL.replace(/\/api$/, '');
 
 function CompletePage() {
   const [ticketNo, setTicketNo] = useState<string>("");
@@ -24,13 +23,16 @@ function CompletePage() {
       try {
         console.log('API呼び出し開始...');
         
-        // 現在の呼び出し番号を取得
-        const statusResponse = await fetch(`${API_BASE_URL}/reservations/status?t=${CACHE_BUST}`, {
+        const date = new Date().toISOString().split('T')[0];
+        const cacheBust = Date.now();
+        
+        // 現在の呼び出し番号を取得（キャッシュ無効化）
+        const statusResponse = await fetch(`${API_BASE}/api/reservations/status?date=${date}&v=${cacheBust}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
           credentials: 'omit',
-          cache: 'no-cache'
+          cache: 'no-store'
         });
         
         console.log('Status response:', statusResponse.status);
@@ -42,13 +44,13 @@ function CompletePage() {
           console.error('Status API error:', statusResponse.status, statusResponse.statusText);
         }
 
-        // 現在の整理券番号（カウンター）を取得
-        const counterResponse = await fetch(`${API_BASE_URL}/reservations/counter?t=${CACHE_BUST}`, {
+        // 現在の整理券番号（カウンター）を取得（キャッシュ無効化）
+        const counterResponse = await fetch(`${API_BASE}/api/reservations/counter?date=${date}&v=${cacheBust}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           mode: 'cors',
           credentials: 'omit',
-          cache: 'no-cache'
+          cache: 'no-store'
         });
         
         console.log('Counter response:', counterResponse.status);
@@ -100,7 +102,7 @@ function CompletePage() {
           {/* デバッグ情報 */}
           <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-4">
             <div className="text-sm text-yellow-800 font-bold">
-              🔧 デバッグ情報 (Cache Bust: {CACHE_BUST})
+              🔧 デバッグ情報
             </div>
             <div className="text-xs text-yellow-700">
               ticketNo: {ticketNo || 'なし'} | currentNumber: {currentNumber} | currentTicketNumber: {currentTicketNumber}
