@@ -159,30 +159,33 @@ router.get("/", requireAdmin, async (_req, res) => {
     const hasEventDate = columns.includes('event_date');
     const hasTicketNo = columns.includes('ticket_no');
     
+    // 日本時間の今日を取得（UTC+9）
+    const todayJST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    console.log(`📅 [GET] 日本時間の今日: ${todayJST}`);
+    
     // event_dateがある場合はそれを使用、ない場合はcreated_at::dateを使用
-    // 両方の条件で試す（データが確実に取得できるように）
     let result;
     
-    if (hasEventDate) {
-      // event_date基準で取得
-      result = await pool.query(`
-        SELECT 
-          id,
-          ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
-          email,
-          count,
-          age,
-          COALESCE(status, '未呼出') AS status,
-          channel,
-          user_agent AS "userAgent",
-          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
-          called_at AS "calledAt"
+      if (hasEventDate) {
+        // event_date基準で取得（JST基準・パラメータ化クエリ）
+        result = await pool.query(`
+          SELECT 
+            id,
+            ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
+            email,
+            count,
+            age,
+            COALESCE(status, '未呼出') AS status,
+            channel,
+            user_agent AS "userAgent",
+            TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
+            called_at AS "calledAt"
         FROM reservations 
-        WHERE event_date = CURRENT_DATE
+        WHERE event_date = $1::date
         ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
-      `);
+      `, [todayJST]);
     } else {
-      // created_at基準で取得
+      // created_at基準で取得（JST基準・パラメータ化クエリ）
       result = await pool.query(`
         SELECT 
           id,
@@ -196,9 +199,9 @@ router.get("/", requireAdmin, async (_req, res) => {
           TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
           called_at AS "calledAt"
         FROM reservations 
-        WHERE created_at::date = CURRENT_DATE
+        WHERE created_at::date = $1::date
         ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
-      `);
+      `, [todayJST]);
     }
     
     console.log(`✅ [GET /api/reservations] DB取得成功: ${result.rows.length}件 (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
@@ -249,31 +252,43 @@ router.post("/", validateReservation, async (req, res) => {
       const hasEventDate = columns.includes('event_date');
       const hasTicketNo = columns.includes('ticket_no');
       
-      // 整理券番号の採番（より確実なロック方式）
+      // 整理券番号の採番（JST基準で当日のMAX+1を取得）
+      // 日本時間の今日を取得（UTC+9）
+      const todayJST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      console.log(`📅 [POST] 日本時間の今日: ${todayJST}`);
+      
       let ticketNo = 1;
       
       if (hasTicketNo) {
-        // ticket_noカラムがある場合：行ロックで確実に採番
-        const whereClause = hasEventDate 
-          ? 'WHERE event_date = CURRENT_DATE'
-          : 'WHERE created_at::date = CURRENT_DATE';
-        
+        // ticket_noカラムがある場合：MAX+1で採番（シンプルな方法）
         // テーブル全体をロックしてからMAXを取得（最も確実な方法）
         await client.query(`LOCK TABLE reservations IN SHARE ROW EXCLUSIVE MODE`);
         
-        const maxResult = await client.query<{ max: number | null }>(`
-          SELECT COALESCE(MAX(ticket_no), 0) AS max 
-          FROM reservations 
-          ${whereClause}
-        `);
+        if (hasEventDate) {
+          // event_dateがある場合：event_date = 今日でMAX+1
+          const maxResult = await client.query<{ next_no: number }>(`
+            SELECT COALESCE(MAX(ticket_no), 0) + 1 AS next_no 
+            FROM reservations 
+            WHERE event_date = $1::date
+          `, [todayJST]);
+          ticketNo = maxResult.rows[0]?.next_no ?? 1;
+        } else {
+          // event_dateがない場合：created_at::date = 今日でMAX+1
+          const maxResult = await client.query<{ next_no: number }>(`
+            SELECT COALESCE(MAX(ticket_no), 0) + 1 AS next_no 
+            FROM reservations 
+            WHERE created_at::date = $1::date
+          `, [todayJST]);
+          ticketNo = maxResult.rows[0]?.next_no ?? 1;
+        }
         
-        ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
-        console.log(`🎫 [POST] 当日の最大ticket_no: ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo} (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
+        console.log(`🎫 [POST] 当日の最大ticket_no + 1 = ${ticketNo} (JST基準: ${todayJST})`);
+        console.log(`🎫 [POST] 当日の最大ticket_noから採番: ${ticketNo} (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
       } else {
         // ticket_noカラムがない場合：カウントベース
         const whereClause = hasEventDate 
-          ? 'WHERE event_date = CURRENT_DATE'
-          : 'WHERE created_at::date = CURRENT_DATE';
+          ? `WHERE event_date = '${todayJST}'::date`
+          : `WHERE created_at::date = '${todayJST}'::date`;
         
         await client.query(`LOCK TABLE reservations IN SHARE ROW EXCLUSIVE MODE`);
         
@@ -297,11 +312,11 @@ router.post("/", validateReservation, async (req, res) => {
       const insertPlaceholders: string[] = [];
       let paramIndex = 1;
       
-      // event_date（存在する場合のみ、デフォルト値を使用）
+      // event_date（存在する場合のみ、JST基準の日付を使用）
       if (hasEventDate) {
         insertColumns.push('event_date');
-        insertValues.push(null); // DEFAULT値を使用
-        insertPlaceholders.push('CURRENT_DATE');
+        insertValues.push(todayJST);
+        insertPlaceholders.push(`$${paramIndex++}`);
       }
       
       if (hasTicketNo) {
@@ -353,9 +368,14 @@ router.post("/", validateReservation, async (req, res) => {
         insertPlaceholders.push(`NOW() AT TIME ZONE 'Asia/Tokyo'`);
       }
       
-      // パラメータの値をフィルタリング（NOW()などは除外）
+      // パラメータの値をフィルタリング（NOW()などは除外、ただしevent_dateのJST日付は含める）
       const paramValues = insertValues.filter((v, i) => {
         const placeholder = insertPlaceholders[i];
+        // event_dateの場合はJST日付文字列なので含める
+        if (hasEventDate && insertColumns[i] === 'event_date') {
+          return true;
+        }
+        // その他の場合はNOW()やCURRENT_DATEを含むものは除外
         return placeholder && !placeholder.includes('NOW()') && !placeholder.includes('CURRENT_DATE') && v !== null;
       });
       
