@@ -189,163 +189,218 @@ router.post("/", validateReservation, async (req, res) => {
   
   console.log(`📥 [POST /api/reservations] email=${email}, count=${count}, age=${age}, channel=${channel}`);
   
-  // トランザクションで確実にDB保存
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    console.log('💾 [POST] トランザクション開始');
-    
-    // まずテーブル構造を確認（デバッグ用）
-    const schemaCheck = await client.query(`
-      SELECT column_name FROM information_schema.columns 
-      WHERE table_name = 'reservations' 
-      ORDER BY ordinal_position
-    `);
-    const columns = schemaCheck.rows.map((r: any) => r.column_name);
-    console.log('📊 [POST] テーブルカラム:', columns);
-    
-    // 当日の最大整理券番号を取得（ticket_noカラムが存在する場合）
-    let ticketNo = 1;
-    if (columns.includes('ticket_no')) {
-      const nextResult = await client.query<{ ticket_no: number }>(`
-        WITH last_today AS (
-          SELECT COALESCE(MAX(ticket_no), 0) AS last_no
-          FROM reservations
+  // リトライロジック（最大5回）
+  const MAX_RETRIES = 5;
+  let lastError: any = null;
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      console.log(`💾 [POST] トランザクション開始 (試行 ${attempt}/${MAX_RETRIES})`);
+      
+      // テーブル構造を確認
+      const schemaCheck = await client.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'reservations' 
+        ORDER BY ordinal_position
+      `);
+      const columns = schemaCheck.rows.map((r: any) => r.column_name);
+      console.log('📊 [POST] テーブルカラム:', columns);
+      
+      // event_dateが存在するか確認
+      const hasEventDate = columns.includes('event_date');
+      const hasTicketNo = columns.includes('ticket_no');
+      
+      // 整理券番号の採番（FOR UPDATEでロック取得）
+      let ticketNo = 1;
+      if (hasEventDate && hasTicketNo) {
+        // event_dateカラムがある場合：当日の最大ticket_noを取得（FOR UPDATE）
+        const maxResult = await client.query<{ max: number | null }>(`
+          SELECT MAX(ticket_no) AS max 
+          FROM reservations 
+          WHERE event_date = CURRENT_DATE
+          FOR UPDATE
+        `);
+        ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
+        console.log(`🎫 [POST] 当日の最大ticket_no: ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo}`);
+      } else if (hasTicketNo) {
+        // event_dateがないがticket_noがある場合：created_at::dateで判定
+        const maxResult = await client.query<{ max: number | null }>(`
+          SELECT MAX(ticket_no) AS max 
+          FROM reservations 
           WHERE created_at::date = CURRENT_DATE
-        )
-        SELECT last_no + 1 AS ticket_no FROM last_today
-      `);
-      ticketNo = nextResult.rows[0].ticket_no;
-    } else {
-      // ticket_noカラムがない場合はidベースで計算
-      const countResult = await client.query<{ count: string }>(`
-        SELECT COUNT(*) AS count FROM reservations
-        WHERE created_at::date = CURRENT_DATE
-      `);
-      ticketNo = parseInt(countResult.rows[0].count || '0') + 1;
+          FOR UPDATE
+        `);
+        ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
+        console.log(`🎫 [POST] 当日の最大ticket_no (created_at基準): ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo}`);
+      } else {
+        // ticket_noがない場合：カウントベース
+        const countResult = await client.query<{ count: string }>(`
+          SELECT COUNT(*) AS count FROM reservations
+          WHERE ${hasEventDate ? 'event_date = CURRENT_DATE' : 'created_at::date = CURRENT_DATE'}
+        `);
+        ticketNo = parseInt(countResult.rows[0]?.count || '0') + 1;
+        console.log(`🎫 [POST] カウントベース採番: ${ticketNo}`);
+      }
+      
+      // INSERT文を構築
+      const insertColumns: string[] = [];
+      const insertValues: any[] = [];
+      const insertPlaceholders: string[] = [];
+      let paramIndex = 1;
+      
+      // event_date（存在する場合のみ、デフォルト値を使用）
+      if (hasEventDate) {
+        insertColumns.push('event_date');
+        insertValues.push(null); // DEFAULT値を使用
+        insertPlaceholders.push('CURRENT_DATE');
+      }
+      
+      if (hasTicketNo) {
+        insertColumns.push('ticket_no');
+        insertValues.push(ticketNo);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('email')) {
+        insertColumns.push('email');
+        insertValues.push(email);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('count')) {
+        insertColumns.push('count');
+        insertValues.push(count);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('age')) {
+        insertColumns.push('age');
+        insertValues.push(age);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('status')) {
+        insertColumns.push('status');
+        insertValues.push('未呼出');
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('channel')) {
+        insertColumns.push('channel');
+        insertValues.push(channel);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      if (columns.includes('user_agent')) {
+        insertColumns.push('user_agent');
+        insertValues.push(userAgent);
+        insertPlaceholders.push(`$${paramIndex++}`);
+      }
+      
+      // created_at
+      if (columns.includes('created_at')) {
+        insertColumns.push('created_at');
+        insertValues.push(null);
+        insertPlaceholders.push(`NOW() AT TIME ZONE 'Asia/Tokyo'`);
+      }
+      
+      // パラメータの値をフィルタリング（NOW()などは除外）
+      const paramValues = insertValues.filter((v, i) => {
+        const placeholder = insertPlaceholders[i];
+        return placeholder && !placeholder.includes('NOW()') && !placeholder.includes('CURRENT_DATE') && v !== null;
+      });
+      
+      const insertSQL = `
+        INSERT INTO reservations (${insertColumns.join(', ')})
+        VALUES (${insertPlaceholders.join(', ')})
+        RETURNING 
+          id,
+          ${hasEventDate ? 'event_date AS "eventDate",' : ''}
+          ${hasTicketNo ? 'ticket_no AS "ticketNo",' : ''}
+          email,
+          ${columns.includes('count') ? 'count,' : ''}
+          ${columns.includes('age') ? 'age,' : ''}
+          ${columns.includes('status') ? 'status,' : ''}
+          ${columns.includes('channel') ? 'channel,' : ''}
+          ${columns.includes('user_agent') ? 'user_agent AS "userAgent",' : ''}
+          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
+      `.replace(/,\s*$/gm, '').replace(/,\s*FROM/g, ' FROM');
+      
+      console.log(`🔨 [POST] INSERT SQL: ${insertSQL}`);
+      console.log(`📝 [POST] パラメータ値:`, paramValues);
+      
+      const inserted = await client.query(insertSQL, paramValues);
+      
+      await client.query('COMMIT');
+      console.log(`✅ [POST] DB保存成功: #${ticketNo} - ${email} (${channel})`);
+      console.log(`📄 [POST] 保存結果:`, JSON.stringify(inserted.rows[0]));
+      
+      // レスポンスを正規化
+      const responseData = {
+        id: inserted.rows[0].id,
+        ticketNo: inserted.rows[0].ticketNo || inserted.rows[0].ticket_no || ticketNo,
+        email: inserted.rows[0].email,
+        count: inserted.rows[0].count || count,
+        age: inserted.rows[0].age || age,
+        status: inserted.rows[0].status || '未呼出',
+        channel: inserted.rows[0].channel || channel,
+        createdAt: inserted.rows[0].createdAt || new Date().toISOString()
+      };
+      
+      client.release();
+      return res.status(201).json({ ok: true, data: responseData });
+      
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      client.release();
+      lastError = err;
+      
+      // UNIQUE制約違反の場合はリトライ
+      if (err?.code === '23505' && attempt < MAX_RETRIES) {
+        console.warn(`⚠️ [POST] UNIQUE制約違反、リトライします (${attempt}/${MAX_RETRIES}):`, err.constraint);
+        // 短い待機時間（指数バックオフ）
+        await new Promise(resolve => setTimeout(resolve, Math.min(50 * attempt, 200)));
+        continue;
+      }
+      
+      // その他のエラーまたは最終試行の場合はエラーを返す
+      console.error(`❌ [POST /api/reservations] ROLLBACK (試行 ${attempt}):`, err);
+      console.error("エラー詳細:", err);
+      console.error("エラーメッセージ:", err?.message);
+      console.error("エラーコード:", err?.code);
+      console.error("エラー詳細メッセージ:", err?.detail);
+      console.error("エラーSQL:", err?.where);
+      
+      const errorDetails = {
+        message: err?.message || String(err),
+        code: err?.code,
+        detail: err?.detail,
+        hint: err?.hint,
+        constraint: err?.constraint,
+        table: err?.table,
+        column: err?.column,
+        attempt: attempt
+      };
+      
+      return res.status(500).json({ 
+        ok: false, 
+        error: "db_error", 
+        details: errorDetails
+      });
     }
-    
-    console.log(`🎫 [POST] 次の整理券番号: ${ticketNo}`);
-    
-    // カラムが存在するものだけを使ってINSERT（動的構築）
-    const insertColumns: string[] = [];
-    const insertValues: any[] = [];
-    const insertPlaceholders: string[] = [];
-    let paramIndex = 1;
-    
-    if (columns.includes('ticket_no')) {
-      insertColumns.push('ticket_no');
-      insertValues.push(ticketNo);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('email')) {
-      insertColumns.push('email');
-      insertValues.push(email);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('count')) {
-      insertColumns.push('count');
-      insertValues.push(count);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('age')) {
-      insertColumns.push('age');
-      insertValues.push(age);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('status')) {
-      insertColumns.push('status');
-      insertValues.push('未呼出');
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('channel')) {
-      insertColumns.push('channel');
-      insertValues.push(channel);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    if (columns.includes('user_agent')) {
-      insertColumns.push('user_agent');
-      insertValues.push(userAgent);
-      insertPlaceholders.push(`$${paramIndex++}`);
-    }
-    
-    // created_atは常に含める（通常は存在するはず）
-    insertColumns.push('created_at');
-    insertValues.push('NOW() AT TIME ZONE \'Asia/Tokyo\'');
-    insertPlaceholders.push(`NOW() AT TIME ZONE 'Asia/Tokyo'`);
-    
-    const insertSQL = `
-      INSERT INTO reservations (${insertColumns.join(', ')})
-      VALUES (${insertPlaceholders.join(', ')})
-      RETURNING 
-        id,
-        ${columns.includes('ticket_no') ? 'ticket_no AS "ticketNo",' : ''}
-        email,
-        ${columns.includes('count') ? 'count,' : ''}
-        ${columns.includes('age') ? 'age,' : ''}
-        ${columns.includes('status') ? 'status,' : ''}
-        ${columns.includes('channel') ? 'channel,' : ''}
-        ${columns.includes('user_agent') ? 'user_agent AS "userAgent",' : ''}
-        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
-    `.replace(/,\s*$/, '');
-    
-    console.log(`🔨 [POST] INSERT SQL: ${insertSQL}`);
-    console.log(`📝 [POST] 値:`, insertValues);
-    
-    const inserted = await client.query(insertSQL, insertValues.filter(v => typeof v !== 'string' || !v.includes('NOW()')));
-    
-    await client.query('COMMIT');
-    console.log(`✅ [POST] DB保存成功: #${ticketNo} - ${email} (${channel})`);
-    console.log(`📄 [POST] 保存結果:`, JSON.stringify(inserted.rows[0]));
-    
-    // レスポンスを正規化
-    const responseData = {
-      id: inserted.rows[0].id,
-      ticketNo: inserted.rows[0].ticketNo || inserted.rows[0].ticket_no || inserted.rows[0].id,
-      email: inserted.rows[0].email,
-      count: inserted.rows[0].count || count,
-      age: inserted.rows[0].age || age,
-      status: inserted.rows[0].status || '未呼出',
-      channel: inserted.rows[0].channel || channel,
-      createdAt: inserted.rows[0].createdAt || new Date().toISOString()
-    };
-    
-    return res.status(201).json({ ok: true, data: responseData });
-    
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error("❌ [POST /api/reservations] ROLLBACK:", err);
-    console.error("エラー詳細:", err);
-    console.error("エラーメッセージ:", err?.message);
-    console.error("エラーコード:", err?.code);
-    console.error("エラー詳細メッセージ:", err?.detail);
-    console.error("エラーSQL:", err?.where);
-    
-    // より詳細なエラー情報を返す
-    const errorDetails = {
-      message: err?.message || String(err),
-      code: err?.code,
-      detail: err?.detail,
-      hint: err?.hint,
-      constraint: err?.constraint,
-      table: err?.table,
-      column: err?.column
-    };
-    
-    return res.status(500).json({ 
-      ok: false, 
-      error: "db_error", 
-      details: errorDetails
-    });
-  } finally {
-    client.release();
   }
+  
+  // すべてのリトライが失敗した場合
+  return res.status(500).json({ 
+    ok: false, 
+    error: "db_error", 
+    details: {
+      message: "すべてのリトライが失敗しました",
+      last_error: lastError?.message
+    }
+  });
 });
 
 // 整理券ステータス更新API（管理者のみ）
@@ -541,16 +596,54 @@ router.put("/current-number", requireAdmin, (req, res) => {
 // 整理券カウンター取得API（公開 - 予約完了画面用）
 router.get("/counter", async (_req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT COALESCE(MAX(ticket_no), 0) AS counter
-      FROM reservations
-      WHERE created_at::date = CURRENT_DATE
+    // event_dateカラムがある場合はそれを使用、ない場合はcreated_at::dateを使用
+    const schemaCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'reservations' AND column_name IN ('event_date', 'ticket_no')
     `);
+    const columns = schemaCheck.rows.map((r: any) => r.column_name);
+    const hasEventDate = columns.includes('event_date');
+    const hasTicketNo = columns.includes('ticket_no');
     
-    const counter = result.rows[0]?.counter || 0;
-    console.log(`🎫 [GET /counter] カウンター: ${counter}, 呼び出し番号: ${currentNumber}`);
+    let counter = 0;
+    let totalCount = 0;
     
-    return res.json({ ok: true, data: { counter, currentNumber } });
+    if (hasTicketNo) {
+      if (hasEventDate) {
+        const result = await pool.query(`
+          SELECT 
+            COALESCE(MAX(ticket_no), 0) AS counter,
+            COUNT(*) AS total_count
+          FROM reservations
+          WHERE event_date = CURRENT_DATE
+        `);
+        counter = parseInt(result.rows[0]?.counter || '0');
+        totalCount = parseInt(result.rows[0]?.total_count || '0');
+      } else {
+        const result = await pool.query(`
+          SELECT 
+            COALESCE(MAX(ticket_no), 0) AS counter,
+            COUNT(*) AS total_count
+          FROM reservations
+          WHERE created_at::date = CURRENT_DATE
+        `);
+        counter = parseInt(result.rows[0]?.counter || '0');
+        totalCount = parseInt(result.rows[0]?.total_count || '0');
+      }
+    } else {
+      // ticket_noがない場合はカウント
+      const result = await pool.query(`
+        SELECT COUNT(*) AS total_count
+        FROM reservations
+        WHERE ${hasEventDate ? 'event_date = CURRENT_DATE' : 'created_at::date = CURRENT_DATE'}
+      `);
+      totalCount = parseInt(result.rows[0]?.total_count || '0');
+      counter = totalCount;
+    }
+    
+    console.log(`🎫 [GET /counter] カウンター: ${counter}, 件数: ${totalCount}, 呼び出し番号: ${currentNumber}`);
+    
+    return res.json({ ok: true, data: { counter, totalCount, currentNumber } });
   } catch (err) {
     console.error("❌ [GET /counter] DBエラー:", err);
     return res.status(500).json({ ok: false, error: "db_error" });
