@@ -117,11 +117,31 @@ router.post("/", validateReservation, async (req, res) => {
     
     return res.status(201).json({ ok: true, data: inserted.rows[0] });
     
-  } catch (err) {
+  } catch (err: any) {
     await client.query('ROLLBACK');
     console.error("❌ [POST /api/reservations] ROLLBACK:", err);
     console.error("エラー詳細:", err);
-    return res.status(500).json({ ok: false, error: "db_error", details: String(err) });
+    console.error("エラーメッセージ:", err?.message);
+    console.error("エラーコード:", err?.code);
+    console.error("エラー詳細メッセージ:", err?.detail);
+    console.error("エラーSQL:", err?.where);
+    
+    // より詳細なエラー情報を返す
+    const errorDetails = {
+      message: err?.message || String(err),
+      code: err?.code,
+      detail: err?.detail,
+      hint: err?.hint,
+      constraint: err?.constraint,
+      table: err?.table,
+      column: err?.column
+    };
+    
+    return res.status(500).json({ 
+      ok: false, 
+      error: "db_error", 
+      details: errorDetails
+    });
   } finally {
     client.release();
   }
