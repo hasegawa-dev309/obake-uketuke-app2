@@ -331,21 +331,25 @@ router.post("/", validateReservation, async (req, res) => {
         return placeholder && !placeholder.includes('NOW()') && !placeholder.includes('CURRENT_DATE') && v !== null;
       });
       
+      // RETURNING句を構築（必ずticketNoを含める）
+      const returningFields = [
+        'id',
+        hasEventDate ? 'event_date AS "eventDate"' : '',
+        hasTicketNo ? 'ticket_no AS "ticketNo"' : 'NULL AS "ticketNo"',
+        'email',
+        columns.includes('count') ? 'count' : '',
+        columns.includes('age') ? 'age' : '',
+        columns.includes('status') ? 'status' : '',
+        columns.includes('channel') ? 'channel' : '',
+        columns.includes('user_agent') ? 'user_agent AS "userAgent"' : '',
+        'TO_CHAR(created_at, \'YYYY/MM/DD HH24:MI\') AS "createdAt"'
+      ].filter(f => f !== '').join(', ');
+      
       const insertSQL = `
         INSERT INTO reservations (${insertColumns.join(', ')})
         VALUES (${insertPlaceholders.join(', ')})
-        RETURNING 
-          id,
-          ${hasEventDate ? 'event_date AS "eventDate",' : ''}
-          ${hasTicketNo ? 'ticket_no AS "ticketNo",' : ''}
-          email,
-          ${columns.includes('count') ? 'count,' : ''}
-          ${columns.includes('age') ? 'age,' : ''}
-          ${columns.includes('status') ? 'status,' : ''}
-          ${columns.includes('channel') ? 'channel,' : ''}
-          ${columns.includes('user_agent') ? 'user_agent AS "userAgent",' : ''}
-          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
-      `.replace(/,\s*$/gm, '').replace(/,\s*FROM/g, ' FROM');
+        RETURNING ${returningFields}
+      `;
       
       console.log(`🔨 [POST] INSERT SQL: ${insertSQL}`);
       console.log(`📝 [POST] パラメータ値:`, paramValues);
