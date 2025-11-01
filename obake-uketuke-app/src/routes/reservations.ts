@@ -150,24 +150,38 @@ router.get("/", requireAdmin, async (_req, res) => {
   console.log('📋 [GET /api/reservations] リクエスト受信');
   
   try {
+    // event_dateカラムの存在確認
+    const schemaCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'reservations' AND column_name IN ('event_date', 'ticket_no')
+    `);
+    const columns = schemaCheck.rows.map((r: any) => r.column_name);
+    const hasEventDate = columns.includes('event_date');
+    const hasTicketNo = columns.includes('ticket_no');
+    
+    // event_dateがある場合はそれを使用、ない場合はcreated_at::dateを使用
+    const whereClause = hasEventDate 
+      ? 'WHERE event_date = CURRENT_DATE'
+      : 'WHERE created_at::date = CURRENT_DATE';
+    
     const result = await pool.query(`
       SELECT 
         id,
-        ticket_no AS "ticketNo",
+        ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
         email,
         count,
         age,
-        status,
+        COALESCE(status, '未呼出') AS status,
         channel,
         user_agent AS "userAgent",
         TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
         called_at AS "calledAt"
       FROM reservations 
-      WHERE created_at::date = CURRENT_DATE
-      ORDER BY created_at ASC
+      ${whereClause}
+      ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
     `);
     
-    console.log(`✅ [GET /api/reservations] DB取得成功: ${result.rows.length}件`);
+    console.log(`✅ [GET /api/reservations] DB取得成功: ${result.rows.length}件 (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
     if (result.rows.length > 0) {
       console.log(`📄 サンプルデータ:`, JSON.stringify(result.rows[0]));
     }
@@ -212,36 +226,41 @@ router.post("/", validateReservation, async (req, res) => {
       const hasEventDate = columns.includes('event_date');
       const hasTicketNo = columns.includes('ticket_no');
       
-      // 整理券番号の採番（FOR UPDATEでロック取得）
+      // 整理券番号の採番（FOR UPDATEでロック取得して競合を防止）
       let ticketNo = 1;
-      if (hasEventDate && hasTicketNo) {
-        // event_dateカラムがある場合：当日の最大ticket_noを取得（FOR UPDATE）
+      
+      if (hasTicketNo) {
+        // ticket_noカラムがある場合：MAX+1で採番
+        const whereClause = hasEventDate 
+          ? 'WHERE event_date = CURRENT_DATE'
+          : 'WHERE created_at::date = CURRENT_DATE';
+        
+        // より確実なロックを取得するために、該当行をロック
         const maxResult = await client.query<{ max: number | null }>(`
-          SELECT MAX(ticket_no) AS max 
+          SELECT COALESCE(MAX(ticket_no), 0) AS max 
           FROM reservations 
-          WHERE event_date = CURRENT_DATE
+          ${whereClause}
           FOR UPDATE
         `);
+        
         ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
-        console.log(`🎫 [POST] 当日の最大ticket_no: ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo}`);
-      } else if (hasTicketNo) {
-        // event_dateがないがticket_noがある場合：created_at::dateで判定
-        const maxResult = await client.query<{ max: number | null }>(`
-          SELECT MAX(ticket_no) AS max 
-          FROM reservations 
-          WHERE created_at::date = CURRENT_DATE
-          FOR UPDATE
-        `);
-        ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
-        console.log(`🎫 [POST] 当日の最大ticket_no (created_at基準): ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo}`);
+        console.log(`🎫 [POST] 当日の最大ticket_no: ${maxResult.rows[0]?.max ?? 0}, 次の番号: ${ticketNo} (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
       } else {
-        // ticket_noがない場合：カウントベース
+        // ticket_noカラムがない場合：カウントベース
+        const whereClause = hasEventDate 
+          ? 'WHERE event_date = CURRENT_DATE'
+          : 'WHERE created_at::date = CURRENT_DATE';
+        
         const countResult = await client.query<{ count: string }>(`
-          SELECT COUNT(*) AS count FROM reservations
-          WHERE ${hasEventDate ? 'event_date = CURRENT_DATE' : 'created_at::date = CURRENT_DATE'}
+          SELECT COUNT(*) AS count FROM reservations ${whereClause}
         `);
         ticketNo = parseInt(countResult.rows[0]?.count || '0') + 1;
-        console.log(`🎫 [POST] カウントベース採番: ${ticketNo}`);
+        console.log(`🎫 [POST] カウントベース採番: ${ticketNo} (ticket_noカラムなし)`);
+      }
+      
+      // ticket_noは必ず1以上の値を設定
+      if (ticketNo < 1) {
+        ticketNo = 1;
       }
       
       // INSERT文を構築
@@ -337,17 +356,21 @@ router.post("/", validateReservation, async (req, res) => {
       console.log(`✅ [POST] DB保存成功: #${ticketNo} - ${email} (${channel})`);
       console.log(`📄 [POST] 保存結果:`, JSON.stringify(inserted.rows[0]));
       
-      // レスポンスを正規化
+      // レスポンスを正規化（ticketNoを確実に含める）
+      const insertedRow = inserted.rows[0];
       const responseData = {
-        id: inserted.rows[0].id,
-        ticketNo: inserted.rows[0].ticketNo || inserted.rows[0].ticket_no || ticketNo,
-        email: inserted.rows[0].email,
-        count: inserted.rows[0].count || count,
-        age: inserted.rows[0].age || age,
-        status: inserted.rows[0].status || '未呼出',
-        channel: inserted.rows[0].channel || channel,
-        createdAt: inserted.rows[0].createdAt || new Date().toISOString()
+        id: String(insertedRow.id || ''),
+        ticketNo: insertedRow.ticketNo || insertedRow.ticket_no || ticketNo || 1,
+        email: insertedRow.email || email,
+        count: Number(insertedRow.count || count),
+        age: insertedRow.age || age,
+        status: insertedRow.status || '未呼出',
+        channel: insertedRow.channel || channel,
+        createdAt: insertedRow.createdAt || new Date().toISOString().replace('T', ' ').slice(0, 16)
       };
+      
+      // ticketNoが確実に含まれていることを確認
+      console.log(`🎟️ [POST] レスポンスデータ:`, JSON.stringify(responseData));
       
       client.release();
       return res.status(201).json({ ok: true, data: responseData });

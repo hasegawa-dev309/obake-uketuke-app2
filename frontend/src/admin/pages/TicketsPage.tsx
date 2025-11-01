@@ -36,16 +36,24 @@ export default function TicketsPage(){
           console.log("📄 サンプルデータ:", result.data[0]);
         }
         
-        // データを正しい型に変換（idを文字列に変換）
-        const mappedTickets: Ticket[] = result.data.map((item: any) => ({
-          id: String(item.id || item.ticketNo || ''),
-          email: item.email || '',
-          count: Number(item.count || 0),
-          age: item.age || '',
-          status: item.status || '未呼出',
-          createdAt: item.createdAt || '',
-          ticketNo: String(item.ticketNo || item.id || '')
-        }));
+        // データを正しい型に変換（idとticketNoを文字列に変換）
+        const mappedTickets: Ticket[] = result.data.map((item: any) => {
+          const ticketNo = item.ticketNo !== null && item.ticketNo !== undefined 
+            ? String(item.ticketNo) 
+            : (item.ticket_no !== null && item.ticket_no !== undefined 
+                ? String(item.ticket_no) 
+                : String(item.id || ''));
+          
+          return {
+            id: String(item.id || ticketNo || ''),
+            email: item.email || '',
+            count: Number(item.count || 0),
+            age: item.age || '',
+            status: item.status || '未呼出',
+            createdAt: item.createdAt || item.created_at || '',
+            ticketNo: ticketNo
+          };
+        });
         
         console.log("🔄 マッピング後:", mappedTickets.length + "件", mappedTickets[0]);
         setTickets(mappedTickets);
