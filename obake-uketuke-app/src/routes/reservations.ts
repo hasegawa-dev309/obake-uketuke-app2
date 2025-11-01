@@ -31,23 +31,117 @@ async function checkAndResetIfNeeded() {
   }
 }
 
-// テーブル構造確認用エンドポイント（デバッグ用）
-router.get("/debug/schema", requireAdmin, async (_req, res) => {
+// DB確認用エンドポイント（管理者のみ）
+router.get("/debug/db-info", requireAdmin, async (_req, res) => {
   try {
-    const result = await pool.query(`
+    // 1. テーブル構造を確認
+    const schemaResult = await pool.query(`
       SELECT 
         column_name,
         data_type,
         is_nullable,
-        column_default
+        column_default,
+        character_maximum_length
       FROM information_schema.columns
       WHERE table_name = 'reservations'
       ORDER BY ordinal_position
     `);
     
-    return res.json({ ok: true, columns: result.rows });
+    // 2. 今日のデータ件数を確認
+    const todayCountResult = await pool.query(`
+      SELECT 
+        COUNT(*) AS total_count,
+        COALESCE(MAX(ticket_no), 0) AS max_ticket_no,
+        MIN(created_at::date) AS first_date,
+        MAX(created_at::date) AS last_date
+      FROM reservations
+      WHERE created_at::date = CURRENT_DATE
+    `);
+    
+    // 3. 全期間のデータ件数
+    const allCountResult = await pool.query(`
+      SELECT 
+        COUNT(*) AS total_count,
+        COUNT(DISTINCT created_at::date) AS date_count,
+        MIN(created_at) AS oldest_record,
+        MAX(created_at) AS newest_record
+      FROM reservations
+    `);
+    
+    // 4. 今日のデータサンプル（最新5件）
+    const todaySamplesResult = await pool.query(`
+      SELECT 
+        id,
+        ticket_no,
+        email,
+        count,
+        age,
+        status,
+        channel,
+        TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+      FROM reservations
+      WHERE created_at::date = CURRENT_DATE
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+    
+    // 5. IDシーケンス情報（エラーハンドリング付き）
+    let seqInfo = { sequence_name: null, last_value: null };
+    try {
+      const seqNameResult = await pool.query(`
+        SELECT pg_get_serial_sequence('reservations', 'id') AS sequence_name
+      `);
+      const seqName = seqNameResult.rows[0]?.sequence_name;
+      if (seqName) {
+        const lastValueResult = await pool.query(`SELECT last_value FROM ${seqName}`);
+        seqInfo = {
+          sequence_name: seqName,
+          last_value: lastValueResult.rows[0]?.last_value
+        };
+      }
+    } catch (seqErr) {
+      console.log("⚠️ シーケンス情報取得エラー（無視）:", seqErr);
+    }
+    
+    // 6. 最大ID
+    const maxIdResult = await pool.query(`
+      SELECT COALESCE(MAX(id), 0) AS max_id FROM reservations
+    `);
+    
+    return res.json({ 
+      ok: true,
+      schema: {
+        columns: schemaResult.rows,
+        column_count: schemaResult.rows.length
+      },
+      today: {
+        count: parseInt(todayCountResult.rows[0]?.total_count || '0'),
+        max_ticket_no: parseInt(todayCountResult.rows[0]?.max_ticket_no || '0'),
+        first_date: todayCountResult.rows[0]?.first_date,
+        last_date: todayCountResult.rows[0]?.last_date
+      },
+      all_time: {
+        total_count: parseInt(allCountResult.rows[0]?.total_count || '0'),
+        date_count: parseInt(allCountResult.rows[0]?.date_count || '0'),
+        oldest_record: allCountResult.rows[0]?.oldest_record,
+        newest_record: allCountResult.rows[0]?.newest_record
+      },
+      samples: {
+        today_recent: todaySamplesResult.rows
+      },
+      sequence: {
+        sequence_name: seqInfo.sequence_name,
+        last_value: seqInfo.last_value,
+        max_id: parseInt(maxIdResult.rows[0]?.max_id || '0')
+      }
+    });
   } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error("❌ [GET /debug/db-info] エラー:", err);
+    return res.status(500).json({ 
+      ok: false, 
+      error: err.message,
+      details: err
+    });
   }
 });
 
