@@ -71,7 +71,20 @@ export async function postReservation(payload: {
     body: JSON.stringify(payload)
   });
   
-  return res.json();
+  // HTTPエラーステータスのチェック
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: 'ネットワークエラーが発生しました' }));
+    console.error('❌ [postReservation] HTTPエラー:', res.status, errorData);
+    return {
+      ok: false,
+      error: errorData.error || errorData.message || `HTTPエラー: ${res.status}`,
+      details: errorData.details
+    };
+  }
+  
+  const data = await res.json();
+  console.log('✅ [postReservation] 成功:', data);
+  return data;
 }
 
 // システム状態取得（公開API・認証不要）
@@ -82,8 +95,31 @@ export async function getSystemStatus() {
 
 // 整理券一覧取得（管理API）
 export async function fetchReservations() {
-  const res = await authenticatedFetch('/reservations');
-  return res.json();
+  try {
+    const res = await authenticatedFetch('/reservations');
+    
+    // HTTPエラーステータスのチェック
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: 'ネットワークエラーが発生しました' }));
+      console.error('❌ [fetchReservations] HTTPエラー:', res.status, errorData);
+      return {
+        ok: false,
+        error: errorData.error || errorData.message || `HTTPエラー: ${res.status}`,
+        details: errorData.details
+      };
+    }
+    
+    const data = await res.json();
+    console.log('✅ [fetchReservations] 成功:', data);
+    return data;
+  } catch (err: any) {
+    console.error('❌ [fetchReservations] 例外エラー:', err);
+    return {
+      ok: false,
+      error: err.message || '予約データの取得に失敗しました',
+      details: err.stack
+    };
+  }
 }
 
 // ステータス更新（管理API）

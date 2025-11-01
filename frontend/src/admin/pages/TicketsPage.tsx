@@ -21,18 +21,34 @@ export default function TicketsPage(){
   // APIから整理券データを取得（認証付き）
   const loadTickets = async () => {
     try {
+      console.log("🔄 [TicketsPage] 整理券データ取得開始...");
       const result = await fetchReservations();
+      
+      console.log("📥 [TicketsPage] APIレスポンス:", {
+        ok: result.ok,
+        dataLength: result.data?.length || 0,
+        error: result.error
+      });
       
       if (result.ok && result.data) {
         console.log("✅ 整理券データ取得成功:", result.data.length + "件");
+        if (result.data.length > 0) {
+          console.log("📄 サンプルデータ:", result.data[0]);
+        }
         setTickets(result.data);
       } else {
         console.error("⚠️ 整理券データの取得に失敗:", result);
-        setTickets([]);
+        if (result.error) {
+          console.error("エラー詳細:", result.error, result.details);
+        }
+        // エラー時も既存データを保持（空配列にしない）
+        // setTickets([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ 整理券データ取得エラー:", err);
-      setTickets([]);
+      console.error("エラー詳細:", err.message, err.stack);
+      // エラー時も既存データを保持
+      // setTickets([]);
     }
   };
 
