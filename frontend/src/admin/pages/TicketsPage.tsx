@@ -77,8 +77,11 @@ export default function TicketsPage(){
     // 初回読み込み
     loadTickets();
     
-    // 定期的に更新（3秒ごと）
-    const interval = setInterval(loadTickets, 3000);
+    // 定期的に更新（2秒ごとに短縮して即座に反映）
+    const interval = setInterval(() => {
+      console.log('🔄 [TicketsPage] 定期更新実行');
+      loadTickets();
+    }, 2000);
     
     return () => {
       clearInterval(interval);
