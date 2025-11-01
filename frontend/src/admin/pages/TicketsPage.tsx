@@ -35,7 +35,20 @@ export default function TicketsPage(){
         if (result.data.length > 0) {
           console.log("📄 サンプルデータ:", result.data[0]);
         }
-        setTickets(result.data);
+        
+        // データを正しい型に変換（idを文字列に変換）
+        const mappedTickets: Ticket[] = result.data.map((item: any) => ({
+          id: String(item.id || item.ticketNo || ''),
+          email: item.email || '',
+          count: Number(item.count || 0),
+          age: item.age || '',
+          status: item.status || '未呼出',
+          createdAt: item.createdAt || '',
+          ticketNo: String(item.ticketNo || item.id || '')
+        }));
+        
+        console.log("🔄 マッピング後:", mappedTickets.length + "件", mappedTickets[0]);
+        setTickets(mappedTickets);
       } else {
         console.error("⚠️ 整理券データの取得に失敗:", result);
         if (result.error) {
