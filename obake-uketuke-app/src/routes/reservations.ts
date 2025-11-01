@@ -160,30 +160,53 @@ router.get("/", requireAdmin, async (_req, res) => {
     const hasTicketNo = columns.includes('ticket_no');
     
     // event_dateがある場合はそれを使用、ない場合はcreated_at::dateを使用
-    const whereClause = hasEventDate 
-      ? 'WHERE event_date = CURRENT_DATE'
-      : 'WHERE created_at::date = CURRENT_DATE';
+    // 両方の条件で試す（データが確実に取得できるように）
+    let result;
     
-    const result = await pool.query(`
-      SELECT 
-        id,
-        ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
-        email,
-        count,
-        age,
-        COALESCE(status, '未呼出') AS status,
-        channel,
-        user_agent AS "userAgent",
-        TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
-        called_at AS "calledAt"
-      FROM reservations 
-      ${whereClause}
-      ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
-    `);
+    if (hasEventDate) {
+      // event_date基準で取得
+      result = await pool.query(`
+        SELECT 
+          id,
+          ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
+          email,
+          count,
+          age,
+          COALESCE(status, '未呼出') AS status,
+          channel,
+          user_agent AS "userAgent",
+          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
+          called_at AS "calledAt"
+        FROM reservations 
+        WHERE event_date = CURRENT_DATE
+        ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
+      `);
+    } else {
+      // created_at基準で取得
+      result = await pool.query(`
+        SELECT 
+          id,
+          ${hasTicketNo ? 'COALESCE(ticket_no, 0) AS "ticketNo",' : 'NULL AS "ticketNo",'}
+          email,
+          count,
+          age,
+          COALESCE(status, '未呼出') AS status,
+          channel,
+          user_agent AS "userAgent",
+          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
+          called_at AS "calledAt"
+        FROM reservations 
+        WHERE created_at::date = CURRENT_DATE
+        ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
+      `);
+    }
     
     console.log(`✅ [GET /api/reservations] DB取得成功: ${result.rows.length}件 (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
     if (result.rows.length > 0) {
       console.log(`📄 サンプルデータ:`, JSON.stringify(result.rows[0]));
+      console.log(`📄 ticketNo確認:`, result.rows.map((r: any) => r.ticketNo));
+    } else {
+      console.log(`⚠️ [GET /api/reservations] 今日のデータが0件です`);
     }
     
     return res.json({ ok: true, data: result.rows });
@@ -226,21 +249,22 @@ router.post("/", validateReservation, async (req, res) => {
       const hasEventDate = columns.includes('event_date');
       const hasTicketNo = columns.includes('ticket_no');
       
-      // 整理券番号の採番（FOR UPDATEでロック取得して競合を防止）
+      // 整理券番号の採番（より確実なロック方式）
       let ticketNo = 1;
       
       if (hasTicketNo) {
-        // ticket_noカラムがある場合：MAX+1で採番
+        // ticket_noカラムがある場合：行ロックで確実に採番
         const whereClause = hasEventDate 
           ? 'WHERE event_date = CURRENT_DATE'
           : 'WHERE created_at::date = CURRENT_DATE';
         
-        // より確実なロックを取得するために、該当行をロック
+        // テーブル全体をロックしてからMAXを取得（最も確実な方法）
+        await client.query(`LOCK TABLE reservations IN SHARE ROW EXCLUSIVE MODE`);
+        
         const maxResult = await client.query<{ max: number | null }>(`
           SELECT COALESCE(MAX(ticket_no), 0) AS max 
           FROM reservations 
           ${whereClause}
-          FOR UPDATE
         `);
         
         ticketNo = (maxResult.rows[0]?.max ?? 0) + 1;
@@ -250,6 +274,8 @@ router.post("/", validateReservation, async (req, res) => {
         const whereClause = hasEventDate 
           ? 'WHERE event_date = CURRENT_DATE'
           : 'WHERE created_at::date = CURRENT_DATE';
+        
+        await client.query(`LOCK TABLE reservations IN SHARE ROW EXCLUSIVE MODE`);
         
         const countResult = await client.query<{ count: string }>(`
           SELECT COUNT(*) AS count FROM reservations ${whereClause}
@@ -262,6 +288,8 @@ router.post("/", validateReservation, async (req, res) => {
       if (ticketNo < 1) {
         ticketNo = 1;
       }
+      
+      console.log(`🎟️ [POST] 確定整理券番号: ${ticketNo}`);
       
       // INSERT文を構築
       const insertColumns: string[] = [];
