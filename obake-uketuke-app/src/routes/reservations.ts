@@ -31,6 +31,26 @@ async function checkAndResetIfNeeded() {
   }
 }
 
+// テーブル構造確認用エンドポイント（デバッグ用）
+router.get("/debug/schema", requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        column_name,
+        data_type,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_name = 'reservations'
+      ORDER BY ordinal_position
+    `);
+    
+    return res.json({ ok: true, columns: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // 整理券一覧取得API（管理者のみ）
 router.get("/", requireAdmin, async (_req, res) => {
   console.log('📋 [GET /api/reservations] リクエスト受信');
@@ -81,41 +101,128 @@ router.post("/", validateReservation, async (req, res) => {
     await client.query('BEGIN');
     console.log('💾 [POST] トランザクション開始');
     
-    // 当日の最大整理券番号を取得
-    const nextResult = await client.query<{ ticket_no: number }>(`
-      WITH last_today AS (
-        SELECT COALESCE(MAX(ticket_no), 0) AS last_no
-        FROM reservations
-        WHERE created_at::date = CURRENT_DATE
-      )
-      SELECT last_no + 1 AS ticket_no FROM last_today
+    // まずテーブル構造を確認（デバッグ用）
+    const schemaCheck = await client.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'reservations' 
+      ORDER BY ordinal_position
     `);
+    const columns = schemaCheck.rows.map((r: any) => r.column_name);
+    console.log('📊 [POST] テーブルカラム:', columns);
     
-    const ticketNo = nextResult.rows[0].ticket_no;
+    // 当日の最大整理券番号を取得（ticket_noカラムが存在する場合）
+    let ticketNo = 1;
+    if (columns.includes('ticket_no')) {
+      const nextResult = await client.query<{ ticket_no: number }>(`
+        WITH last_today AS (
+          SELECT COALESCE(MAX(ticket_no), 0) AS last_no
+          FROM reservations
+          WHERE created_at::date = CURRENT_DATE
+        )
+        SELECT last_no + 1 AS ticket_no FROM last_today
+      `);
+      ticketNo = nextResult.rows[0].ticket_no;
+    } else {
+      // ticket_noカラムがない場合はidベースで計算
+      const countResult = await client.query<{ count: string }>(`
+        SELECT COUNT(*) AS count FROM reservations
+        WHERE created_at::date = CURRENT_DATE
+      `);
+      ticketNo = parseInt(countResult.rows[0].count || '0') + 1;
+    }
+    
     console.log(`🎫 [POST] 次の整理券番号: ${ticketNo}`);
     
-    // INSERT実行（日本時間で保存）
-    const inserted = await client.query(`
-      INSERT INTO reservations
-        (ticket_no, email, count, age, status, channel, user_agent, created_at)
-      VALUES ($1, $2, $3, $4, '未呼出', $5, $6, NOW() AT TIME ZONE 'Asia/Tokyo')
+    // カラムが存在するものだけを使ってINSERT（動的構築）
+    const insertColumns: string[] = [];
+    const insertValues: any[] = [];
+    const insertPlaceholders: string[] = [];
+    let paramIndex = 1;
+    
+    if (columns.includes('ticket_no')) {
+      insertColumns.push('ticket_no');
+      insertValues.push(ticketNo);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('email')) {
+      insertColumns.push('email');
+      insertValues.push(email);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('count')) {
+      insertColumns.push('count');
+      insertValues.push(count);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('age')) {
+      insertColumns.push('age');
+      insertValues.push(age);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('status')) {
+      insertColumns.push('status');
+      insertValues.push('未呼出');
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('channel')) {
+      insertColumns.push('channel');
+      insertValues.push(channel);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    if (columns.includes('user_agent')) {
+      insertColumns.push('user_agent');
+      insertValues.push(userAgent);
+      insertPlaceholders.push(`$${paramIndex++}`);
+    }
+    
+    // created_atは常に含める（通常は存在するはず）
+    insertColumns.push('created_at');
+    insertValues.push('NOW() AT TIME ZONE \'Asia/Tokyo\'');
+    insertPlaceholders.push(`NOW() AT TIME ZONE 'Asia/Tokyo'`);
+    
+    const insertSQL = `
+      INSERT INTO reservations (${insertColumns.join(', ')})
+      VALUES (${insertPlaceholders.join(', ')})
       RETURNING 
         id,
-        ticket_no AS "ticketNo",
+        ${columns.includes('ticket_no') ? 'ticket_no AS "ticketNo",' : ''}
         email,
-        count,
-        age,
-        status,
-        channel,
-        user_agent AS "userAgent",
+        ${columns.includes('count') ? 'count,' : ''}
+        ${columns.includes('age') ? 'age,' : ''}
+        ${columns.includes('status') ? 'status,' : ''}
+        ${columns.includes('channel') ? 'channel,' : ''}
+        ${columns.includes('user_agent') ? 'user_agent AS "userAgent",' : ''}
         TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"
-    `, [ticketNo, email, count, age, channel, userAgent]);
+    `.replace(/,\s*$/, '');
+    
+    console.log(`🔨 [POST] INSERT SQL: ${insertSQL}`);
+    console.log(`📝 [POST] 値:`, insertValues);
+    
+    const inserted = await client.query(insertSQL, insertValues.filter(v => typeof v !== 'string' || !v.includes('NOW()')));
     
     await client.query('COMMIT');
     console.log(`✅ [POST] DB保存成功: #${ticketNo} - ${email} (${channel})`);
     console.log(`📄 [POST] 保存結果:`, JSON.stringify(inserted.rows[0]));
     
-    return res.status(201).json({ ok: true, data: inserted.rows[0] });
+    // レスポンスを正規化
+    const responseData = {
+      id: inserted.rows[0].id,
+      ticketNo: inserted.rows[0].ticketNo || inserted.rows[0].ticket_no || inserted.rows[0].id,
+      email: inserted.rows[0].email,
+      count: inserted.rows[0].count || count,
+      age: inserted.rows[0].age || age,
+      status: inserted.rows[0].status || '未呼出',
+      channel: inserted.rows[0].channel || channel,
+      createdAt: inserted.rows[0].createdAt || new Date().toISOString()
+    };
+    
+    return res.status(201).json({ ok: true, data: responseData });
     
   } catch (err: any) {
     await client.query('ROLLBACK');
