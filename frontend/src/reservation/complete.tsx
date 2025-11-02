@@ -132,6 +132,12 @@ function CompletePage() {
           )}
         </div>
 
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-blue-700 text-sm font-medium">
+            <span className="font-bold">ご案内：</span>40組前になったら受付会場にお越しください
+          </p>
+        </div>
+
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <p className="text-red-700 text-sm font-medium">
             この画面は受付で使用するため、スクリーンショットをお願いいたします。
