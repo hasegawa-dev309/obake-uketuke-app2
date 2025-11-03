@@ -38,19 +38,35 @@ export default function TicketsPage(){
         }
         
         // データを正しい型に変換（idとticketNoを文字列に変換）
-        const mappedTickets: Ticket[] = result.data.map((item: any) => {
+        const mappedTickets: Ticket[] = result.data.map((item: any, index: number) => {
           const ticketNo = item.ticketNo !== null && item.ticketNo !== undefined 
             ? String(item.ticketNo) 
             : (item.ticket_no !== null && item.ticket_no !== undefined 
                 ? String(item.ticket_no) 
                 : String(item.id || ''));
           
-          // idを確実に一意にする（idがなければeventDate-ticketNoの組み合わせ）
-          const uniqueId = String(item.id || '');
+          // idを確実に一意にする
+          // 1. item.idが有効な場合はそれを使用
+          // 2. なければeventDate-ticketNoの組み合わせ
+          // 3. それもなければticketNoのみ
+          // 4. それもなければindexベース（最後の手段）
+          const rawId = String(item.id || '');
           const eventDate = item.eventDate || item.event_date || '';
           
+          let uniqueId: string;
+          if (rawId && rawId !== 'undefined' && rawId !== 'null' && rawId !== '') {
+            uniqueId = rawId;
+          } else if (eventDate && ticketNo) {
+            uniqueId = `${eventDate}-${ticketNo}`;
+          } else if (ticketNo && ticketNo !== 'undefined' && ticketNo !== 'null' && ticketNo !== '') {
+            uniqueId = ticketNo;
+          } else {
+            // 最後の手段：indexベース（重複チェックで修正される）
+            uniqueId = `temp-${index}`;
+          }
+          
           return {
-            id: uniqueId || (eventDate && ticketNo ? `${eventDate}-${ticketNo}` : ticketNo || ''),
+            id: uniqueId,
             email: item.email || '',
             count: Number(item.count || 0),
             age: item.age || '',
@@ -61,27 +77,69 @@ export default function TicketsPage(){
           };
         });
         
-        // keyの衝突チェック
-        const keySet = new Set(mappedTickets.map(t => t.id));
-        if (keySet.size !== mappedTickets.length) {
-          console.warn('⚠️ keyの衝突が検出されました:', mappedTickets.length - keySet.size, '件');
-          console.warn('重複するid:', mappedTickets.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) !== i).map(t => t.id));
+        // keyの衝突チェックと自動修正
+        const idMap = new Map<string, number>();
+        const fixedTickets = mappedTickets.map((t, index) => {
+          if (idMap.has(t.id)) {
+            // 重複が見つかった：ticketNoとindexで一意なidを生成
+            const count = idMap.get(t.id)!;
+            idMap.set(t.id, count + 1);
+            
+            const newId = t.eventDate && t.ticketNo 
+              ? `${t.eventDate}-${t.ticketNo}-${count}`
+              : t.ticketNo 
+                ? `${t.ticketNo}-${count}`
+                : `item-${index}`;
+            
+            console.warn(`⚠️ [id重複修正] index=${index}, ticketNo=${t.ticketNo}, 旧id=${t.id}, 新id=${newId}`);
+            
+            return {
+              ...t,
+              id: newId
+            };
+          } else {
+            idMap.set(t.id, 1);
+            return t;
+          }
+        });
+        
+        // 最終的なkeyの衝突チェック
+        const finalKeySet = new Set(fixedTickets.map(t => t.id));
+        if (finalKeySet.size !== fixedTickets.length) {
+          console.error('❌ [致命的] idの重複が解消できませんでした:', fixedTickets.length - finalKeySet.size, '件');
+          console.error('重複するid:', fixedTickets.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) !== i).map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+        } else {
+          console.log('✅ [id検証] すべてのidが一意です:', finalKeySet.size, '件');
         }
         
-        console.log("🔄 マッピング後:", mappedTickets.length + "件", mappedTickets[0]);
+        // #62と#66のidを特別にログ出力
+        const ticket62 = fixedTickets.find(t => String(t.ticketNo) === '62');
+        const ticket66 = fixedTickets.find(t => String(t.ticketNo) === '66');
+        if (ticket62) {
+          console.log('🔍 [#62] id:', ticket62.id, 'ticketNo:', ticket62.ticketNo, 'email:', ticket62.email, 'status:', ticket62.status);
+        }
+        if (ticket66) {
+          console.log('🔍 [#66] id:', ticket66.id, 'ticketNo:', ticket66.ticketNo, 'email:', ticket66.email, 'status:', ticket66.status);
+        }
+        
+        // マッピング後のticketsをfixedTicketsに置き換え
+        const mappedTicketsFinal = fixedTickets;
+        
+        console.log("🔄 マッピング後:", mappedTicketsFinal.length + "件", mappedTicketsFinal[0]);
         console.log("🔍 [マッピング] ステータス分布:", {
-          未呼出: mappedTickets.filter(t => t.status === "未呼出").length,
-          来場済: mappedTickets.filter(t => t.status === "来場済").length,
-          未確認: mappedTickets.filter(t => t.status === "未確認").length,
-          キャンセル: mappedTickets.filter(t => t.status === "キャンセル").length
+          未呼出: mappedTicketsFinal.filter(t => t.status === "未呼出").length,
+          来場済: mappedTicketsFinal.filter(t => t.status === "来場済").length,
+          未確認: mappedTicketsFinal.filter(t => t.status === "未確認").length,
+          キャンセル: mappedTicketsFinal.filter(t => t.status === "キャンセル").length
         });
-        console.log("🔍 [マッピング] サンプル（最初の3件）:", mappedTickets.slice(0, 3).map(t => ({
+        console.log("🔍 [マッピング] サンプル（最初の3件）:", mappedTicketsFinal.slice(0, 3).map(t => ({
           id: t.id,
           ticketNo: t.ticketNo,
           status: t.status,
           email: t.email
         })));
-        setTickets(mappedTickets);
+        console.log("🔍 [マッピング] 全idリスト:", mappedTicketsFinal.map(t => ({ id: t.id, ticketNo: t.ticketNo })));
+        setTickets(mappedTicketsFinal);
       } else {
         console.error("⚠️ 整理券データの取得に失敗:", result);
         if (result.error) {
@@ -149,23 +207,39 @@ export default function TicketsPage(){
 
   // idのみを受け取る（index参照を完全排除）
   const updateStatus = useCallback(async (id: string, newStatus: string) => {
-    console.debug('🔄 [updateStatus] 呼び出し:', { id, newStatus });
+    console.log('🔄 [updateStatus] 呼び出し:', { id, newStatus });
+    console.log('📊 [updateStatus] 現在のtickets配列（最初の5件）:', tickets.slice(0, 5).map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email, status: t.status })));
+    
+    // 同じidを持つチケットが複数ないかチェック
+    const matches = tickets.filter(x => x.id === id);
+    if (matches.length > 1) {
+      console.error(`❌ [updateStatus] 致命的: id=${id} が${matches.length}件見つかりました！`);
+      console.error('重複するチケット:', matches.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email, status: t.status })));
+      alert(`エラー: チケットID ${id} が重複しています。ページをリロードしてください。`);
+      return;
+    }
     
     // find()で確実にデータを取得（tickets配列を基準にする）
     const target = tickets.find(x => x.id === id);
     if (!target) {
       console.error(`❌ [updateStatus] エラー: id=${id} のチケットが見つかりません`);
-      console.error('📊 [updateStatus] 現在のtickets配列:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+      console.error('📊 [updateStatus] 現在のtickets配列（全件）:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
       alert(`エラー: チケットID ${id} が見つかりません`);
       return;
     }
     
-    console.debug('✅ [updateStatus] 対象チケット:', { 
+    console.log('✅ [updateStatus] 対象チケット（更新前）:', { 
       id: target.id, 
       ticket: target.ticketNo, 
       email: target.email,
       status: target.status 
     });
+    
+    // 同じticketNoを持つ他のチケットもチェック（重複検出用）
+    const sameTicketNo = tickets.filter(t => t.ticketNo === target.ticketNo && t.id !== target.id);
+    if (sameTicketNo.length > 0) {
+      console.warn('⚠️ [updateStatus] 同じticketNoを持つ他のチケット:', sameTicketNo.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+    }
     
     try {
       // APIでステータスを更新
