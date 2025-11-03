@@ -228,28 +228,29 @@ export default function TicketsPage(){
   // idのみを受け取る（index参照を完全排除）
   const updateStatus = useCallback(async (id: string, newStatus: string) => {
     console.log('🔄 [updateStatus] 呼び出し:', { id, newStatus });
-    console.log('📊 [updateStatus] 現在のtickets配列（最初の5件）:', tickets.slice(0, 5).map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email, status: t.status })));
     
     // 同じidを持つチケットが複数ないかチェック
     const matches = tickets.filter(x => x.id === id);
-    if (matches.length > 1) {
-      console.error(`❌ [updateStatus] 致命的: id=${id} が${matches.length}件見つかりました！`);
-      console.error('重複するチケット:', matches.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email, status: t.status })));
-      alert(`エラー: チケットID ${id} が重複しています。ページをリロードしてください。`);
-      return;
-    }
-    
-    // find()で確実にデータを取得（tickets配列を基準にする）
-    const target = tickets.find(x => x.id === id);
-    if (!target) {
+    if (matches.length === 0) {
       console.error(`❌ [updateStatus] エラー: id=${id} のチケットが見つかりません`);
-      console.error('📊 [updateStatus] 現在のtickets配列（全件）:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+      console.error('📊 [updateStatus] 現在のtickets配列（全件）:', tickets.map(t => ({ id: t.id, dbId: t.dbId, ticketNo: t.ticketNo, email: t.email })));
       alert(`エラー: チケットID ${id} が見つかりません`);
       return;
     }
     
+    if (matches.length > 1) {
+      console.error(`❌ [updateStatus] 致命的: id=${id} が${matches.length}件見つかりました！`);
+      console.error('重複するチケット:', matches.map(t => ({ id: t.id, dbId: t.dbId, ticketNo: t.ticketNo, email: t.email, status: t.status })));
+      alert(`エラー: チケットID ${id} が重複しています。ページをリロードしてください。`);
+      return;
+    }
+    
+    // filter()[0]で確実にデータを取得（findより確実）
+    const target = matches[0];
+    
     console.log('✅ [updateStatus] 対象チケット（更新前）:', { 
       id: target.id, 
+      dbId: target.dbId,
       ticket: target.ticketNo, 
       email: target.email,
       status: target.status 
