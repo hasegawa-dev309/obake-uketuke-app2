@@ -342,8 +342,19 @@ export default function TicketsPage(){
             </tr>
           </thead>
           <tbody>
-            {filteredTickets.map((ticket) => (
-              <tr key={ticket.id || ticket.ticketNo || `ticket-${ticket.email}`} className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}>
+            {filteredTickets.map((ticket) => {
+              // ユニークなkeyを生成（idが最も確実、なければticketNo、それもなければemail）
+              const uniqueKey = ticket.id || ticket.ticketNo || `ticket-${ticket.email}`;
+              
+              return (
+              <tr 
+                key={uniqueKey} 
+                className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}
+                onClick={(e) => {
+                  // 行クリック時のイベント伝播を制御（必要に応じて）
+                  e.stopPropagation();
+                }}
+              >
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
                   #{ticket.ticketNo || ticket.id}
                 </td>
@@ -366,32 +377,47 @@ export default function TicketsPage(){
                 <td className="px-3 py-2">
                   <div className="flex gap-2 flex-wrap">
                     <button 
-                      onClick={() => updateStatus(ticket.id, "来場済")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateStatus(ticket.id, "来場済");
+                      }}
                       className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                     >
                       来場済
                     </button>
                     <button 
-                      onClick={() => updateStatus(ticket.id, "未呼出")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateStatus(ticket.id, "未呼出");
+                      }}
                       className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
                     >
                       未呼出
                     </button>
                     <button 
-                      onClick={() => updateStatus(ticket.id, "未確認")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateStatus(ticket.id, "未確認");
+                      }}
                       className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
                     >
                       未確認
                     </button>
                     <button 
-                      onClick={() => updateStatus(ticket.id, "キャンセル")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateStatus(ticket.id, "キャンセル");
+                      }}
                       className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
                     >
                       <XCircle size={14} weight="bold" />
                       キャンセル
                     </button>
                     <button 
-                      onClick={() => handleDelete(ticket.id, ticket.ticketNo || ticket.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(ticket.id, ticket.ticketNo || ticket.id);
+                      }}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 flex items-center gap-1"
                     >
                       <XCircle size={14} weight="bold" />
@@ -400,7 +426,8 @@ export default function TicketsPage(){
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {!filteredTickets.length && (
               <tr>
                 <td colSpan={7} className="text-center text-slate-500 py-8">
