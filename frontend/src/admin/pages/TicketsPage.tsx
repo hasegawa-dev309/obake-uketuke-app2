@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
 import { fetchReservations, updateReservationStatus, deleteReservation } from "../../lib/api";
 
@@ -19,7 +19,7 @@ export default function TicketsPage(){
   const [statusFilter, setStatusFilter] = useState("すべて");
 
   // APIから整理券データを取得（認証付き）
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     try {
       console.log("🔄 [TicketsPage] 整理券データ取得開始...");
       const result = await fetchReservations();
@@ -71,7 +71,7 @@ export default function TicketsPage(){
       // エラー時も既存データを保持
       // setTickets([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // 初回読み込み
@@ -102,12 +102,23 @@ export default function TicketsPage(){
     return tickets.filter(t => t.status === status).length;
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
-    console.log(`🔄 ステータス更新開始: id=${id}, status=${newStatus}`);
+  const updateStatus = useCallback(async (id: string, ticketNo: string, newStatus: string) => {
+    console.log(`🔄 ステータス更新開始: id=${id}, ticketNo=${ticketNo}, status=${newStatus}`);
+    console.log(`📊 現在のtickets配列:`, tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+    
+    // idの検証：現在のtickets配列に存在するか確認
+    const targetTicket = tickets.find(t => t.id === id || t.ticketNo === ticketNo);
+    if (!targetTicket) {
+      console.error(`❌ エラー: id=${id}, ticketNo=${ticketNo} のチケットが見つかりません`);
+      alert(`エラー: 整理券番号 ${ticketNo} が見つかりません`);
+      return;
+    }
+    
+    console.log(`✅ 更新対象チケット:`, { id: targetTicket.id, ticketNo: targetTicket.ticketNo, email: targetTicket.email });
     
     try {
-      // APIでステータスを更新（楽観的更新は削除）
-      const result = await updateReservationStatus(id, newStatus);
+      // APIでステータスを更新
+      const result = await updateReservationStatus(targetTicket.id, newStatus);
       
       console.log("📝 APIレスポンス:", result);
       
@@ -125,7 +136,7 @@ export default function TicketsPage(){
       console.error("❌ エラー詳細:", err.message);
       alert(`ステータス更新に失敗しました: ${err.message || "ネットワークを確認してください"}`);
     }
-  };
+  }, [tickets, loadTickets]);
 
   const handleDelete = async (id: string, ticketNo: string) => {
     if (!confirm(`整理券${ticketNo}番を削除しますか？\nこの操作は取り消せません。`)) {
@@ -350,10 +361,6 @@ export default function TicketsPage(){
               <tr 
                 key={uniqueKey} 
                 className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}
-                onClick={(e) => {
-                  // 行クリック時のイベント伝播を制御（必要に応じて）
-                  e.stopPropagation();
-                }}
               >
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
                   #{ticket.ticketNo || ticket.id}
@@ -378,8 +385,10 @@ export default function TicketsPage(){
                   <div className="flex gap-2 flex-wrap">
                     <button 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        updateStatus(ticket.id, "来場済");
+                        console.log(`🔘 来場済ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
+                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "来場済");
                       }}
                       className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                     >
@@ -387,8 +396,10 @@ export default function TicketsPage(){
                     </button>
                     <button 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        updateStatus(ticket.id, "未呼出");
+                        console.log(`🔘 未呼出ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
+                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "未呼出");
                       }}
                       className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
                     >
@@ -396,8 +407,10 @@ export default function TicketsPage(){
                     </button>
                     <button 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        updateStatus(ticket.id, "未確認");
+                        console.log(`🔘 未確認ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
+                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "未確認");
                       }}
                       className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
                     >
@@ -405,8 +418,10 @@ export default function TicketsPage(){
                     </button>
                     <button 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        updateStatus(ticket.id, "キャンセル");
+                        console.log(`🔘 キャンセルボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
+                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "キャンセル");
                       }}
                       className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
                     >
@@ -415,7 +430,9 @@ export default function TicketsPage(){
                     </button>
                     <button 
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
+                        console.log(`🔘 削除ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
                         handleDelete(ticket.id, ticket.ticketNo || ticket.id);
                       }}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 flex items-center gap-1"
