@@ -138,7 +138,27 @@ export default function TicketsPage(){
           status: t.status,
           email: t.email
         })));
-        console.log("🔍 [マッピング] 全idリスト:", mappedTicketsFinal.map(t => ({ id: t.id, ticketNo: t.ticketNo })));
+        console.log("🔍 [マッピング] 全idリスト:", mappedTicketsFinal.map(t => ({ id: t.id, dbId: t.dbId, ticketNo: t.ticketNo })));
+        
+        // dbIdの重複チェック（重要）
+        const dbIdCounts = new Map<string, number>();
+        mappedTicketsFinal.forEach(t => {
+          const count = dbIdCounts.get(t.dbId) || 0;
+          dbIdCounts.set(t.dbId, count + 1);
+        });
+        
+        const duplicateDbIds = Array.from(dbIdCounts.entries())
+          .filter(([_, count]) => count > 1)
+          .map(([dbId, count]) => ({ dbId, count }));
+        
+        if (duplicateDbIds.length > 0) {
+          console.warn('⚠️ [dbId重複] 同じdbIdを持つチケット:', duplicateDbIds);
+          duplicateDbIds.forEach(({ dbId, count }) => {
+            const tickets = mappedTicketsFinal.filter(t => t.dbId === dbId);
+            console.warn(`  - dbId=${dbId}: ${count}件`, tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+          });
+        }
+        
         setTickets(mappedTicketsFinal);
       } else {
         console.error("⚠️ 整理券データの取得に失敗:", result);
@@ -238,7 +258,14 @@ export default function TicketsPage(){
     // 同じticketNoを持つ他のチケットもチェック（重複検出用）
     const sameTicketNo = tickets.filter(t => t.ticketNo === target.ticketNo && t.id !== target.id);
     if (sameTicketNo.length > 0) {
-      console.warn('⚠️ [updateStatus] 同じticketNoを持つ他のチケット:', sameTicketNo.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+      console.warn('⚠️ [updateStatus] 同じticketNoを持つ他のチケット:', sameTicketNo.map(t => ({ id: t.id, dbId: t.dbId, ticketNo: t.ticketNo, email: t.email })));
+    }
+    
+    // 同じdbIdを持つ他のチケットもチェック（重要！）
+    const sameDbId = tickets.filter(t => t.dbId === target.dbId && t.id !== target.id);
+    if (sameDbId.length > 0) {
+      console.error('❌ [updateStatus] 致命的: 同じdbIdを持つ他のチケット:', sameDbId.map(t => ({ id: t.id, dbId: t.dbId, ticketNo: t.ticketNo, email: t.email })));
+      alert(`警告: チケットID ${target.dbId} が重複しています。API呼び出しで複数のレコードが更新される可能性があります。`);
     }
     
     try {
