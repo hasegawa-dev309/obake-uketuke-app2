@@ -3,7 +3,8 @@ import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle
 import { fetchReservations, updateReservationStatus, deleteReservation } from "../../lib/api";
 
 type Ticket = { 
-  id: string; 
+  id: string; // フロントエンド用の一意なid（React key・表示用）
+  dbId: string; // データベースの実際のid（API呼び出し用）
   email: string; 
   count: number; 
   age: string; 
@@ -45,28 +46,27 @@ export default function TicketsPage(){
                 ? String(item.ticket_no) 
                 : String(item.id || ''));
           
-          // idを確実に一意にする
-          // 1. item.idが有効な場合はそれを使用
-          // 2. なければeventDate-ticketNoの組み合わせ
-          // 3. それもなければticketNoのみ
-          // 4. それもなければindexベース（最後の手段）
-          const rawId = String(item.id || '');
+          // データベースの実際のidを保存
+          const dbId = String(item.id || '');
           const eventDate = item.eventDate || item.event_date || '';
           
+          // フロントエンド用の一意なidを生成（必ずticketNoベースで一意にする）
+          // バックエンドのidが重複していても問題ないようにする
           let uniqueId: string;
-          if (rawId && rawId !== 'undefined' && rawId !== 'null' && rawId !== '') {
-            uniqueId = rawId;
-          } else if (eventDate && ticketNo) {
+          if (eventDate && ticketNo && ticketNo !== 'undefined' && ticketNo !== 'null' && ticketNo !== '') {
+            // eventDate-ticketNoの組み合わせ（最も確実に一意）
             uniqueId = `${eventDate}-${ticketNo}`;
           } else if (ticketNo && ticketNo !== 'undefined' && ticketNo !== 'null' && ticketNo !== '') {
-            uniqueId = ticketNo;
+            // eventDateがない場合はticketNoのみ（日付が変われば問題ない）
+            uniqueId = `ticket-${ticketNo}`;
           } else {
-            // 最後の手段：indexベース（重複チェックで修正される）
-            uniqueId = `temp-${index}`;
+            // 最後の手段：dbId-indexの組み合わせ
+            uniqueId = `item-${dbId || index}-${index}`;
           }
           
           return {
-            id: uniqueId,
+            id: uniqueId, // フロントエンド用の一意なid
+            dbId: dbId, // データベースの実際のid（API呼び出し用）
             email: item.email || '',
             count: Number(item.count || 0),
             age: item.age || '',
@@ -112,14 +112,14 @@ export default function TicketsPage(){
           console.log('✅ [id検証] すべてのidが一意です:', finalKeySet.size, '件');
         }
         
-        // #62と#66のidを特別にログ出力
-        const ticket62 = fixedTickets.find(t => String(t.ticketNo) === '62');
-        const ticket66 = fixedTickets.find(t => String(t.ticketNo) === '66');
-        if (ticket62) {
-          console.log('🔍 [#62] id:', ticket62.id, 'ticketNo:', ticket62.ticketNo, 'email:', ticket62.email, 'status:', ticket62.status);
+        // #67と#71のidを特別にログ出力
+        const ticket67 = fixedTickets.find(t => String(t.ticketNo) === '67');
+        const ticket71 = fixedTickets.find(t => String(t.ticketNo) === '71');
+        if (ticket67) {
+          console.log('🔍 [#67] id:', ticket67.id, 'dbId:', ticket67.dbId, 'ticketNo:', ticket67.ticketNo, 'email:', ticket67.email, 'status:', ticket67.status);
         }
-        if (ticket66) {
-          console.log('🔍 [#66] id:', ticket66.id, 'ticketNo:', ticket66.ticketNo, 'email:', ticket66.email, 'status:', ticket66.status);
+        if (ticket71) {
+          console.log('🔍 [#71] id:', ticket71.id, 'dbId:', ticket71.dbId, 'ticketNo:', ticket71.ticketNo, 'email:', ticket71.email, 'status:', ticket71.status);
         }
         
         // マッピング後のticketsをfixedTicketsに置き換え
@@ -242,8 +242,11 @@ export default function TicketsPage(){
     }
     
     try {
-      // APIでステータスを更新
-      const result = await updateReservationStatus(target.id, newStatus);
+      // APIでステータスを更新（dbIdを使用、なければidをそのまま使用）
+      const apiId = target.dbId || target.id;
+      console.log('🌐 [updateStatus] API呼び出し:', { apiId, dbId: target.dbId, uniqueId: target.id, ticketNo: target.ticketNo });
+      
+      const result = await updateReservationStatus(apiId, newStatus);
       
       console.log("📝 [updateStatus] APIレスポンス:", result);
       
@@ -276,10 +279,14 @@ export default function TicketsPage(){
       return;
     }
 
-    console.debug('🗑️ [handleDelete] 削除開始:', { id: target.id, ticket: target.ticketNo, email: target.email });
+    console.debug('🗑️ [handleDelete] 削除開始:', { id: target.id, dbId: target.dbId, ticket: target.ticketNo, email: target.email });
 
     try {
-      const result = await deleteReservation(target.id);
+      // APIで削除（dbIdを使用、なければidをそのまま使用）
+      const apiId = target.dbId || target.id;
+      console.log('🌐 [handleDelete] API呼び出し:', { apiId, dbId: target.dbId, uniqueId: target.id, ticketNo: target.ticketNo });
+      
+      const result = await deleteReservation(apiId);
       
       if (result.ok) {
         console.log("✅ [handleDelete] 削除成功");
