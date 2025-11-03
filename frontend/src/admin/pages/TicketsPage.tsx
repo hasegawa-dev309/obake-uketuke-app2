@@ -537,17 +537,30 @@ export default function TicketsPage(){
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
+            {rows.map((r, rowIndex) => {
               // keyは必ずidを使用（一意性保証済み）
-              const rowKey = r.id || (r.eventDate && r.ticketNo ? `${r.eventDate}-${r.ticketNo}` : `ticket-${r.email}`);
-              
-              // デバッグ用：レンダリング時のステータスを確認
-              if (rows.indexOf(r) < 3) {
-                console.debug('🔍 [レンダリング] 行データ:', {
-                  key: rowKey,
+              // idが存在しない場合はエラーとして扱う
+              if (!r.id) {
+                console.error('❌ [レンダリング] idが存在しません:', {
                   ticketNo: r.ticketNo,
+                  email: r.email,
+                  dbId: r.dbId,
+                  index: rowIndex
+                });
+              }
+              
+              const rowKey = r.id || `error-${rowIndex}`;
+              
+              // #67と#71の場合は特別にログ出力
+              if (r.ticketNo === '67' || r.ticketNo === '71' || r.ticketNo === 67 || r.ticketNo === 71) {
+                console.log(`🔍 [レンダリング] ticketNo=${r.ticketNo}:`, {
+                  key: rowKey,
+                  id: r.id,
+                  dbId: r.dbId,
+                  ticketNo: r.ticketNo,
+                  email: r.email,
                   status: r.status,
-                  id: r.id
+                  index: rowIndex
                 });
               }
               
@@ -555,6 +568,9 @@ export default function TicketsPage(){
               <tr 
                 key={rowKey} 
                 className={`border-t ${r.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}
+                data-ticket-id={r.id}
+                data-ticket-no={r.ticketNo}
+                data-db-id={r.dbId}
               >
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
                   #{r.ticketNo || r.id}
@@ -581,10 +597,37 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.debug('🔘 [来場済] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
-                        updateStatus(r.id, "来場済");
+                        const clickedId = r.id;
+                        console.log('🔘 [来場済] ボタンクリック:', {
+                          clickedId,
+                          ticketNo: r.ticketNo,
+                          dbId: r.dbId,
+                          email: r.email,
+                          rowKey: rowKey
+                        });
+                        
+                        // クリックされた行のデータを確認
+                        const clickedRow = rows.find(row => row.id === clickedId);
+                        if (!clickedRow) {
+                          console.error('❌ [来場済] クリックされた行が見つかりません:', clickedId);
+                          alert('エラー: チケットが見つかりません');
+                          return;
+                        }
+                        
+                        if (clickedRow.ticketNo !== r.ticketNo) {
+                          console.error('❌ [来場済] 行データの不一致:', {
+                            expected: r.ticketNo,
+                            actual: clickedRow.ticketNo,
+                            clickedId
+                          });
+                        }
+                        
+                        updateStatus(clickedId, "来場済");
                       }}
                       className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                      data-action="来場済"
+                      data-ticket-id={r.id}
+                      data-ticket-no={r.ticketNo}
                     >
                       来場済
                     </button>
@@ -592,10 +635,20 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.debug('🔘 [未呼出] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
-                        updateStatus(r.id, "未呼出");
+                        const clickedId = r.id;
+                        console.log('🔘 [未呼出] ボタンクリック:', {
+                          clickedId,
+                          ticketNo: r.ticketNo,
+                          dbId: r.dbId,
+                          email: r.email,
+                          rowKey: rowKey
+                        });
+                        updateStatus(clickedId, "未呼出");
                       }}
                       className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
+                      data-action="未呼出"
+                      data-ticket-id={r.id}
+                      data-ticket-no={r.ticketNo}
                     >
                       未呼出
                     </button>
@@ -603,10 +656,20 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.debug('🔘 [未確認] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
-                        updateStatus(r.id, "未確認");
+                        const clickedId = r.id;
+                        console.log('🔘 [未確認] ボタンクリック:', {
+                          clickedId,
+                          ticketNo: r.ticketNo,
+                          dbId: r.dbId,
+                          email: r.email,
+                          rowKey: rowKey
+                        });
+                        updateStatus(clickedId, "未確認");
                       }}
                       className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
+                      data-action="未確認"
+                      data-ticket-id={r.id}
+                      data-ticket-no={r.ticketNo}
                     >
                       未確認
                     </button>
@@ -614,10 +677,20 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.debug('🔘 [キャンセル] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
-                        updateStatus(r.id, "キャンセル");
+                        const clickedId = r.id;
+                        console.log('🔘 [キャンセル] ボタンクリック:', {
+                          clickedId,
+                          ticketNo: r.ticketNo,
+                          dbId: r.dbId,
+                          email: r.email,
+                          rowKey: rowKey
+                        });
+                        updateStatus(clickedId, "キャンセル");
                       }}
                       className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
+                      data-action="キャンセル"
+                      data-ticket-id={r.id}
+                      data-ticket-no={r.ticketNo}
                     >
                       <XCircle size={14} weight="bold" />
                       キャンセル
@@ -626,10 +699,20 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.debug('🔘 [削除] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
-                        handleDelete(r.id);
+                        const clickedId = r.id;
+                        console.log('🔘 [削除] ボタンクリック:', {
+                          clickedId,
+                          ticketNo: r.ticketNo,
+                          dbId: r.dbId,
+                          email: r.email,
+                          rowKey: rowKey
+                        });
+                        handleDelete(clickedId);
                       }}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 flex items-center gap-1"
+                      data-action="削除"
+                      data-ticket-id={r.id}
+                      data-ticket-no={r.ticketNo}
                     >
                       <XCircle size={14} weight="bold" />
                       削除
