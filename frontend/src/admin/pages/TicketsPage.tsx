@@ -342,8 +342,8 @@ export default function TicketsPage(){
             </tr>
           </thead>
           <tbody>
-            {filteredTickets.map((ticket, index) => (
-              <tr key={`${ticket.id}-${index}`} className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}>
+            {filteredTickets.map((ticket) => (
+              <tr key={ticket.id || ticket.ticketNo || `ticket-${ticket.email}`} className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}>
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
                   #{ticket.ticketNo || ticket.id}
                 </td>

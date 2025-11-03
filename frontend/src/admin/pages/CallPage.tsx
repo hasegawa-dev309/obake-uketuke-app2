@@ -121,7 +121,25 @@ export default function CallPage(){
         const result = await fetchReservations();
         
         if (result.ok && result.data) {
-          setTickets(result.data);
+          // データを正しい型に変換（idとticketNoを確実に設定）
+          const mappedTickets: Ticket[] = result.data.map((item: any) => {
+            const ticketNo = item.ticketNo !== null && item.ticketNo !== undefined 
+              ? String(item.ticketNo) 
+              : (item.ticket_no !== null && item.ticket_no !== undefined 
+                  ? String(item.ticket_no) 
+                  : String(item.id || ''));
+            
+            return {
+              id: String(item.id || ticketNo || ''),
+              email: item.email || '',
+              count: Number(item.count || 0),
+              age: item.age || '',
+              status: item.status || '未呼出',
+              createdAt: item.createdAt || item.created_at || '',
+              ticketNo: ticketNo
+            };
+          });
+          setTickets(mappedTickets);
         }
       } catch (err) {
         console.error("❌ 整理券データ取得エラー:", err);
@@ -138,16 +156,36 @@ export default function CallPage(){
   };
 
   const sendEmailToCurrentNumber = () => {
-    const ticket = tickets.find(t => t.ticketNo === String(current) || t.id === String(current));
+    // ticketNoで検索（最も確実）、なければidで検索
+    const ticket = tickets.find(t => {
+      const ticketNoStr = String(t.ticketNo || '');
+      const idStr = String(t.id || '');
+      const currentStr = String(current);
+      return ticketNoStr === currentStr || idStr === currentStr;
+    });
+    
     if (!ticket) {
-      alert("該当する整理券が見つかりません");
+      alert(`整理券番号 ${current} 番が見つかりません`);
       return;
     }
+    
+    if (!ticket.email) {
+      alert("メールアドレスが登録されていません");
+      return;
+    }
+    
+    console.log('📧 [sendEmailToCurrentNumber] メール送信:', {
+      ticketNo: ticket.ticketNo,
+      id: ticket.id,
+      email: ticket.email,
+      current: current
+    });
     
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const toEmail = ticket.email;
     const subject = "お化け屋敷：順番のお知らせ";
-    const body = `整理券番号 ${current} 番のお客様へ
+    const ticketNumber = ticket.ticketNo || ticket.id || current;
+    const body = `整理券番号 ${ticketNumber} 番のお客様へ
 
 まもなくお化け屋敷へのご案内となります。
 恐れ入りますが、受付前までお越しください。
@@ -165,21 +203,41 @@ export default function CallPage(){
   };
 
   const sendEmailToUpcomingNumbers = () => {
-    const upcomingTickets = tickets.filter(t => {
-      const num = Number(t.ticketNo || t.id);
-      return num > current && num <= current + 5;
-    });
+    const currentNum = Number(current);
+    const upcomingTickets = tickets
+      .filter(t => {
+        const ticketNo = Number(t.ticketNo || t.id || 0);
+        return ticketNo > currentNum && ticketNo <= currentNum + 5;
+      })
+      .sort((a, b) => {
+        // ticketNoでソート
+        const numA = Number(a.ticketNo || a.id || 0);
+        const numB = Number(b.ticketNo || b.id || 0);
+        return numA - numB;
+      });
     
     if (upcomingTickets.length === 0) {
       alert("次の5組の整理券が見つかりません");
       return;
     }
     
+    console.log('📧 [sendEmailToUpcomingNumbers] メール送信対象:', upcomingTickets.map(t => ({
+      ticketNo: t.ticketNo,
+      id: t.id,
+      email: t.email
+    })));
+    
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const subject = "お化け屋敷：まもなくお呼びします";
     
     // 複数の宛先にメールを送る場合は、各宛先に対して個別にGmail作成画面を開く
+    // find()で取得した正しいticketオブジェクトを使用
     upcomingTickets.forEach((ticket, index) => {
+      if (!ticket.email) {
+        console.warn(`⚠️ 整理券番号 ${ticket.ticketNo || ticket.id} にはメールアドレスがありません`);
+        return;
+      }
+      
       const ticketNumber = ticket.ticketNo || ticket.id;
       const body = `整理券番号 ${ticketNumber} 番のお客様へ
 
