@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
 import { fetchReservations, getCurrentNumber, updateCurrentNumber } from "../../lib/api";
 import { API_CONFIG } from "../../config/api.config";
@@ -15,6 +15,7 @@ type Ticket = {
   status: string;
   createdAt: string;
   ticketNo?: string;
+  eventDate?: string; // event_dateフィールド（あれば）
 };
 
 export default function CallPage(){
@@ -129,16 +130,28 @@ export default function CallPage(){
                   ? String(item.ticket_no) 
                   : String(item.id || ''));
             
+            // idを確実に一意にする（idがなければeventDate-ticketNoの組み合わせ）
+            const uniqueId = String(item.id || '');
+            const eventDate = item.eventDate || item.event_date || '';
+            
             return {
-              id: String(item.id || ticketNo || ''),
+              id: uniqueId || (eventDate && ticketNo ? `${eventDate}-${ticketNo}` : ticketNo || ''),
               email: item.email || '',
               count: Number(item.count || 0),
               age: item.age || '',
               status: item.status || '未呼出',
               createdAt: item.createdAt || item.created_at || '',
-              ticketNo: ticketNo
+              ticketNo: ticketNo,
+              eventDate: eventDate
             };
           });
+          
+          // keyの衝突チェック
+          const keySet = new Set(mappedTickets.map(t => t.id));
+          if (keySet.size !== mappedTickets.length) {
+            console.warn('⚠️ [CallPage] keyの衝突が検出されました:', mappedTickets.length - keySet.size, '件');
+          }
+          
           setTickets(mappedTickets);
         }
       } catch (err) {
@@ -155,30 +168,33 @@ export default function CallPage(){
     window.location.reload();
   };
 
-  const sendEmailToCurrentNumber = () => {
-    // ticketNoで検索（最も確実）、なければidで検索
+  // idで確実に検索（useCallbackでメモ化）
+  const sendEmailToCurrentNumber = useCallback(() => {
+    console.debug('📧 [sendEmailToCurrentNumber] 呼び出し:', { current });
+    
+    // find()で確実にデータを取得（ticketNoで検索）
     const ticket = tickets.find(t => {
-      const ticketNoStr = String(t.ticketNo || '');
-      const idStr = String(t.id || '');
-      const currentStr = String(current);
-      return ticketNoStr === currentStr || idStr === currentStr;
+      const ticketNo = Number(t.ticketNo || t.id || 0);
+      return ticketNo === current;
     });
     
     if (!ticket) {
+      console.error(`❌ [sendEmailToCurrentNumber] エラー: 整理券番号 ${current} が見つかりません`);
+      console.error('📊 [sendEmailToCurrentNumber] 現在のtickets配列:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
       alert(`整理券番号 ${current} 番が見つかりません`);
       return;
     }
     
     if (!ticket.email) {
+      console.error('❌ [sendEmailToCurrentNumber] メールアドレスが登録されていません:', ticket);
       alert("メールアドレスが登録されていません");
       return;
     }
     
-    console.log('📧 [sendEmailToCurrentNumber] メール送信:', {
-      ticketNo: ticket.ticketNo,
-      id: ticket.id,
-      email: ticket.email,
-      current: current
+    console.debug('✅ [sendEmailToCurrentNumber] 対象チケット:', { 
+      id: ticket.id, 
+      ticket: ticket.ticketNo, 
+      email: ticket.email 
     });
     
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
@@ -200,15 +216,20 @@ export default function CallPage(){
     
     // Gmail作成を開く（失敗時はmailto）
     openMail(toEmail, subject, body, fromEmail);
-  };
+  }, [tickets, current]);
 
-  const sendEmailToUpcomingNumbers = () => {
+  // useMemo + slice()で非破壊的にフィルタとソート（useCallbackでメモ化）
+  const sendEmailToUpcomingNumbers = useCallback(() => {
     const currentNum = Number(current);
+    
+    // 表示用配列を安定化（useMemo + slice()で非破壊）
     const upcomingTickets = tickets
+      .slice() // 破壊防止（元配列を触らない）
       .filter(t => {
         const ticketNo = Number(t.ticketNo || t.id || 0);
         return ticketNo > currentNum && ticketNo <= currentNum + 5;
       })
+      .slice() // 再度slice()で安全に
       .sort((a, b) => {
         // ticketNoでソート
         const numA = Number(a.ticketNo || a.id || 0);
@@ -217,13 +238,14 @@ export default function CallPage(){
       });
     
     if (upcomingTickets.length === 0) {
+      console.warn('⚠️ [sendEmailToUpcomingNumbers] 次の5組の整理券が見つかりません');
       alert("次の5組の整理券が見つかりません");
       return;
     }
     
-    console.log('📧 [sendEmailToUpcomingNumbers] メール送信対象:', upcomingTickets.map(t => ({
-      ticketNo: t.ticketNo,
+    console.debug('📧 [sendEmailToUpcomingNumbers] メール送信対象:', upcomingTickets.map(t => ({
       id: t.id,
+      ticketNo: t.ticketNo,
       email: t.email
     })));
     
@@ -234,9 +256,16 @@ export default function CallPage(){
     // find()で取得した正しいticketオブジェクトを使用
     upcomingTickets.forEach((ticket, index) => {
       if (!ticket.email) {
-        console.warn(`⚠️ 整理券番号 ${ticket.ticketNo || ticket.id} にはメールアドレスがありません`);
+        console.warn(`⚠️ [sendEmailToUpcomingNumbers] 整理券番号 ${ticket.ticketNo || ticket.id} にはメールアドレスがありません`);
         return;
       }
+      
+      console.debug('✅ [sendEmailToUpcomingNumbers] 送信:', { 
+        id: ticket.id, 
+        ticket: ticket.ticketNo, 
+        email: ticket.email,
+        index 
+      });
       
       const ticketNumber = ticket.ticketNo || ticket.id;
       const body = `整理券番号 ${ticketNumber} 番のお客様へ
@@ -256,7 +285,7 @@ export default function CallPage(){
         openMail(ticket.email, subject, body, fromEmail);
       }, index * 500); // 0.5秒ずつ遅延させて開く
     });
-  };
+  }, [tickets, current]);
 
   return (
     <div className="max-w-4xl mx-auto">
