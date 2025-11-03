@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { ArrowClockwise, Download, UserCircle, Ticket as TicketIcon, CheckCircle, Clock, XCircle } from "phosphor-react";
 import { fetchReservations, updateReservationStatus, deleteReservation } from "../../lib/api";
 
@@ -10,6 +10,7 @@ type Ticket = {
   status: string;
   createdAt: string;
   ticketNo?: string;
+  eventDate?: string; // event_dateフィールド（あれば）
 };
 
 export default function TicketsPage(){
@@ -44,16 +45,28 @@ export default function TicketsPage(){
                 ? String(item.ticket_no) 
                 : String(item.id || ''));
           
+          // idを確実に一意にする（idがなければeventDate-ticketNoの組み合わせ）
+          const uniqueId = String(item.id || '');
+          const eventDate = item.eventDate || item.event_date || '';
+          
           return {
-            id: String(item.id || ticketNo || ''),
+            id: uniqueId || (eventDate && ticketNo ? `${eventDate}-${ticketNo}` : ticketNo || ''),
             email: item.email || '',
             count: Number(item.count || 0),
             age: item.age || '',
             status: item.status || '未呼出',
             createdAt: item.createdAt || item.created_at || '',
-            ticketNo: ticketNo
+            ticketNo: ticketNo,
+            eventDate: eventDate
           };
         });
+        
+        // keyの衝突チェック
+        const keySet = new Set(mappedTickets.map(t => t.id));
+        if (keySet.size !== mappedTickets.length) {
+          console.warn('⚠️ keyの衝突が検出されました:', mappedTickets.length - keySet.size, '件');
+          console.warn('重複するid:', mappedTickets.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) !== i).map(t => t.id));
+        }
         
         console.log("🔄 マッピング後:", mappedTickets.length + "件", mappedTickets[0]);
         setTickets(mappedTickets);
@@ -88,78 +101,114 @@ export default function TicketsPage(){
     };
   }, []);
 
-  const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         ticket.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         ticket.count.toString().includes(searchTerm);
-    const matchesAge = ageFilter === "すべて" || ticket.age === ageFilter;
-    const matchesStatus = statusFilter === "すべて" || ticket.status === statusFilter;
-    
-    return matchesSearch && matchesAge && matchesStatus;
-  });
+  // 表示用配列を安定化（useMemo + slice()で非破壊）
+  const rows = useMemo(() => {
+    return tickets
+      .filter(ticket => {
+        const matchesSearch = ticket.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                             ticket.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                             ticket.count.toString().includes(searchTerm);
+        const matchesAge = ageFilter === "すべて" || ticket.age === ageFilter;
+        const matchesStatus = statusFilter === "すべて" || ticket.status === statusFilter;
+        
+        return matchesSearch && matchesAge && matchesStatus;
+      })
+      .slice() // 破壊防止（元配列を触らない）
+      .sort((a, b) => {
+        // ticketNoでソート（番号順）
+        const numA = Number(a.ticketNo || a.id || 0);
+        const numB = Number(b.ticketNo || b.id || 0);
+        return numA - numB;
+      });
+  }, [tickets, searchTerm, ageFilter, statusFilter]);
+  
+  // keyの衝突チェック（レンダリング直前）
+  if (rows.length > 0) {
+    const keySet = new Set(rows.map(r => r.id));
+    console.assert(keySet.size === rows.length, '⚠️ keyの衝突:', rows.length - keySet.size, '件');
+  }
+  
+  // 後方互換性のためにfilteredTicketsも定義
+  const filteredTickets = rows;
 
   const getStatusCount = (status: string) => {
     return tickets.filter(t => t.status === status).length;
   };
 
-  const updateStatus = useCallback(async (id: string, ticketNo: string, newStatus: string) => {
-    console.log(`🔄 ステータス更新開始: id=${id}, ticketNo=${ticketNo}, status=${newStatus}`);
-    console.log(`📊 現在のtickets配列:`, tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+  // idのみを受け取る（index参照を完全排除）
+  const updateStatus = useCallback(async (id: string, newStatus: string) => {
+    console.debug('🔄 [updateStatus] 呼び出し:', { id, newStatus });
     
-    // idの検証：現在のtickets配列に存在するか確認
-    const targetTicket = tickets.find(t => t.id === id || t.ticketNo === ticketNo);
-    if (!targetTicket) {
-      console.error(`❌ エラー: id=${id}, ticketNo=${ticketNo} のチケットが見つかりません`);
-      alert(`エラー: 整理券番号 ${ticketNo} が見つかりません`);
+    // find()で確実にデータを取得（tickets配列を基準にする）
+    const target = tickets.find(x => x.id === id);
+    if (!target) {
+      console.error(`❌ [updateStatus] エラー: id=${id} のチケットが見つかりません`);
+      console.error('📊 [updateStatus] 現在のtickets配列:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+      alert(`エラー: チケットID ${id} が見つかりません`);
       return;
     }
     
-    console.log(`✅ 更新対象チケット:`, { id: targetTicket.id, ticketNo: targetTicket.ticketNo, email: targetTicket.email });
+    console.debug('✅ [updateStatus] 対象チケット:', { 
+      id: target.id, 
+      ticket: target.ticketNo, 
+      email: target.email,
+      status: target.status 
+    });
     
     try {
       // APIでステータスを更新
-      const result = await updateReservationStatus(targetTicket.id, newStatus);
+      const result = await updateReservationStatus(target.id, newStatus);
       
-      console.log("📝 APIレスポンス:", result);
+      console.log("📝 [updateStatus] APIレスポンス:", result);
       
       if (result.ok) {
-        console.log("✅ ステータス更新成功");
+        console.log("✅ [updateStatus] ステータス更新成功");
         // 成功時のみUIを更新
         await loadTickets();
       } else {
-        console.error("⚠️ ステータス更新失敗:", result);
+        console.error("⚠️ [updateStatus] ステータス更新失敗:", result);
         const errorMsg = result.error || result.details || "ステータス更新に失敗しました";
         alert(`エラー: ${errorMsg}`);
       }
     } catch (err: any) {
-      console.error("❌ ステータス更新エラー:", err);
-      console.error("❌ エラー詳細:", err.message);
+      console.error("❌ [updateStatus] ステータス更新エラー:", err);
+      console.error("❌ [updateStatus] エラー詳細:", err.message);
       alert(`ステータス更新に失敗しました: ${err.message || "ネットワークを確認してください"}`);
     }
   }, [tickets, loadTickets]);
 
-  const handleDelete = async (id: string, ticketNo: string) => {
+  const handleDelete = useCallback(async (id: string) => {
+    // find()で確実にデータを取得
+    const target = tickets.find(x => x.id === id);
+    if (!target) {
+      console.error(`❌ [handleDelete] エラー: id=${id} のチケットが見つかりません`);
+      return;
+    }
+    
+    const ticketNo = target.ticketNo || target.id;
     if (!confirm(`整理券${ticketNo}番を削除しますか？\nこの操作は取り消せません。`)) {
       return;
     }
 
+    console.debug('🗑️ [handleDelete] 削除開始:', { id: target.id, ticket: target.ticketNo, email: target.email });
+
     try {
-      const result = await deleteReservation(id);
+      const result = await deleteReservation(target.id);
       
       if (result.ok) {
-        console.log("✅ 削除成功");
+        console.log("✅ [handleDelete] 削除成功");
         alert(`整理券${ticketNo}番を削除しました`);
         // 成功時のみUIを更新
         await loadTickets();
       } else {
-        console.error("⚠️ 削除失敗:", result);
+        console.error("⚠️ [handleDelete] 削除失敗:", result);
         alert(`エラー: ${result.error || "削除に失敗しました"}`);
       }
     } catch (err) {
-      console.error("❌ 削除エラー:", err);
+      console.error("❌ [handleDelete] 削除エラー:", err);
       alert("削除に失敗しました。ネットワークを確認してください。");
     }
-  };
+  }, [tickets, loadTickets]);
 
   const exportToCSV = () => {
     // 整理券データ（メールアドレスなし）
@@ -353,33 +402,33 @@ export default function TicketsPage(){
             </tr>
           </thead>
           <tbody>
-            {filteredTickets.map((ticket) => {
-              // ユニークなkeyを生成（idが最も確実、なければticketNo、それもなければemail）
-              const uniqueKey = ticket.id || ticket.ticketNo || `ticket-${ticket.email}`;
+            {rows.map((r) => {
+              // keyは必ずidを使用（一意性保証済み）
+              const rowKey = r.id || (r.eventDate && r.ticketNo ? `${r.eventDate}-${r.ticketNo}` : `ticket-${r.email}`);
               
               return (
               <tr 
-                key={uniqueKey} 
-                className={`border-t ${ticket.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}
+                key={rowKey} 
+                className={`border-t ${r.status === "キャンセル" ? "opacity-40 bg-gray-50" : ""}`}
               >
                 <td className="px-3 py-2 font-mono text-sm font-bold text-violet-600">
-                  #{ticket.ticketNo || ticket.id}
+                  #{r.ticketNo || r.id}
                 </td>
-                <td className="px-3 py-2">{ticket.email}</td>
-                <td className="px-3 py-2">{ticket.count}名</td>
-                <td className="px-3 py-2">{ticket.age}</td>
+                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{r.count}名</td>
+                <td className="px-3 py-2">{r.age}</td>
                 <td className="px-3 py-2">
                   <span className={`px-2 py-1 rounded-full text-xs ${
-                    ticket.status === "未確認" ? "bg-yellow-100 text-yellow-700" :
-                    ticket.status === "未呼出" ? "bg-blue-100 text-blue-700" :
-                    ticket.status === "キャンセル" ? "bg-red-100 text-red-700" :
+                    r.status === "未確認" ? "bg-yellow-100 text-yellow-700" :
+                    r.status === "未呼出" ? "bg-blue-100 text-blue-700" :
+                    r.status === "キャンセル" ? "bg-red-100 text-red-700" :
                     "bg-green-100 text-green-700"
                   }`}>
-                    {ticket.status}
+                    {r.status}
                   </span>
                 </td>
                 <td className="px-3 py-2">
-                  {new Date(ticket.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
+                  {new Date(r.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2 flex-wrap">
@@ -387,8 +436,8 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🔘 来場済ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
-                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "来場済");
+                        console.debug('🔘 [来場済] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
+                        updateStatus(r.id, "来場済");
                       }}
                       className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                     >
@@ -398,8 +447,8 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🔘 未呼出ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
-                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "未呼出");
+                        console.debug('🔘 [未呼出] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
+                        updateStatus(r.id, "未呼出");
                       }}
                       className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200"
                     >
@@ -409,8 +458,8 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🔘 未確認ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
-                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "未確認");
+                        console.debug('🔘 [未確認] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
+                        updateStatus(r.id, "未確認");
                       }}
                       className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200"
                     >
@@ -420,8 +469,8 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🔘 キャンセルボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
-                        updateStatus(ticket.id, ticket.ticketNo || ticket.id, "キャンセル");
+                        console.debug('🔘 [キャンセル] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
+                        updateStatus(r.id, "キャンセル");
                       }}
                       className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
                     >
@@ -432,8 +481,8 @@ export default function TicketsPage(){
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🔘 削除ボタンクリック: ticket.id=${ticket.id}, ticket.ticketNo=${ticket.ticketNo}, ticket.email=${ticket.email}`);
-                        handleDelete(ticket.id, ticket.ticketNo || ticket.id);
+                        console.debug('🔘 [削除] clickedId:', r.id, 'ticket:', r.ticketNo, 'email:', r.email);
+                        handleDelete(r.id);
                       }}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 flex items-center gap-1"
                     >
