@@ -69,6 +69,18 @@ export default function TicketsPage(){
         }
         
         console.log("🔄 マッピング後:", mappedTickets.length + "件", mappedTickets[0]);
+        console.log("🔍 [マッピング] ステータス分布:", {
+          未呼出: mappedTickets.filter(t => t.status === "未呼出").length,
+          来場済: mappedTickets.filter(t => t.status === "来場済").length,
+          未確認: mappedTickets.filter(t => t.status === "未確認").length,
+          キャンセル: mappedTickets.filter(t => t.status === "キャンセル").length
+        });
+        console.log("🔍 [マッピング] サンプル（最初の3件）:", mappedTickets.slice(0, 3).map(t => ({
+          id: t.id,
+          ticketNo: t.ticketNo,
+          status: t.status,
+          email: t.email
+        })));
         setTickets(mappedTickets);
       } else {
         console.error("⚠️ 整理券データの取得に失敗:", result);
@@ -406,6 +418,16 @@ export default function TicketsPage(){
               // keyは必ずidを使用（一意性保証済み）
               const rowKey = r.id || (r.eventDate && r.ticketNo ? `${r.eventDate}-${r.ticketNo}` : `ticket-${r.email}`);
               
+              // デバッグ用：レンダリング時のステータスを確認
+              if (rows.indexOf(r) < 3) {
+                console.debug('🔍 [レンダリング] 行データ:', {
+                  key: rowKey,
+                  ticketNo: r.ticketNo,
+                  status: r.status,
+                  id: r.id
+                });
+              }
+              
               return (
               <tr 
                 key={rowKey} 
@@ -424,7 +446,7 @@ export default function TicketsPage(){
                     r.status === "キャンセル" ? "bg-red-100 text-red-700" :
                     "bg-green-100 text-green-700"
                   }`}>
-                    {r.status}
+                    {r.status || "不明"}
                   </span>
                 </td>
                 <td className="px-3 py-2">
