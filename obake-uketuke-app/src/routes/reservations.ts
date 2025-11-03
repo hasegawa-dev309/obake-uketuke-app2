@@ -484,29 +484,35 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
   const { status } = req.body;
   
   console.log(`📝 [PUT /:id/status] id=${id}, status=${status}`);
-  console.log(`📝 [PUT] Request body:`, req.body);
-  console.log(`📝 [PUT] Request headers:`, req.headers);
   
   try {
-    // まず対象のレコードが存在するかチェック
+    // 数値に変換してidで検索（最も確実）
+    const numericId = parseInt(id, 10);
+    
+    if (isNaN(numericId)) {
+      console.log(`⚠️ [PUT] 無効なid形式: ${id}`);
+      return res.status(400).json({ ok: false, error: 'Invalid id format' });
+    }
+    
+    // まず対象のレコードが存在するかチェック（idだけで検索、1件のみ）
     const checkResult = await pool.query(
-      `SELECT id, ticket_no FROM reservations 
-       WHERE id = $1::bigint OR ticket_no = $1::bigint 
-       AND created_at::date = CURRENT_DATE`,
-      [id]
+      `SELECT id, ticket_no, email FROM reservations WHERE id = $1::bigint LIMIT 1`,
+      [numericId]
     );
     
     if (checkResult.rows.length === 0) {
-      console.log(`⚠️ [PUT] 整理券が見つかりません: ${id}`);
+      console.log(`⚠️ [PUT] 整理券が見つかりません: id=${numericId}`);
       return res.status(404).json({ ok: false, error: 'Reservation not found' });
     }
     
-    console.log(`📝 [PUT] 対象レコード発見: id=${checkResult.rows[0].id}, ticket_no=${checkResult.rows[0].ticket_no}`);
+    const targetRecord = checkResult.rows[0];
+    console.log(`📝 [PUT] 対象レコード発見: id=${targetRecord.id}, ticket_no=${targetRecord.ticket_no}, email=${targetRecord.email}`);
     
+    // 必ず1件だけを更新（idで確実に特定）
     const result = await pool.query(
       `UPDATE reservations 
        SET status = $1, called_at = NOW() AT TIME ZONE 'Asia/Tokyo'
-       WHERE id = $2::bigint OR ticket_no = $2::bigint
+       WHERE id = $2::bigint
        RETURNING 
          id,
          ticket_no AS "ticketNo",
@@ -516,15 +522,20 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
          status,
          channel,
          TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt"`,
-      [status, id]
+      [status, numericId]
     );
     
     if (result.rows.length === 0) {
-      console.log(`⚠️ [PUT] 更新後のレコードが見つかりません: ${id}`);
+      console.log(`⚠️ [PUT] 更新後のレコードが見つかりません: id=${numericId}`);
       return res.status(404).json({ ok: false, error: 'Update failed' });
     }
     
-    console.log(`✅ [PUT] ステータス更新成功: #${result.rows[0].ticketNo} → ${status}`);
+    if (result.rows.length > 1) {
+      console.error(`❌ [PUT] 致命的: 複数のレコードが更新されました: ${result.rows.length}件`);
+      return res.status(500).json({ ok: false, error: 'Multiple records updated' });
+    }
+    
+    console.log(`✅ [PUT] ステータス更新成功: id=${numericId}, #${result.rows[0].ticketNo} → ${status}`);
     return res.json({ ok: true, data: result.rows[0] });
   } catch (err: any) {
     console.error("❌ [PUT /:id/status] DBエラー:", err);

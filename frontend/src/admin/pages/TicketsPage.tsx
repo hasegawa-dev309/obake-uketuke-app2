@@ -242,11 +242,26 @@ export default function TicketsPage(){
     }
     
     try {
-      // APIでステータスを更新（dbIdを使用、なければidをそのまま使用）
+      // APIでステータスを更新（必ずdbIdを使用、数値に変換）
       const apiId = target.dbId || target.id;
-      console.log('🌐 [updateStatus] API呼び出し:', { apiId, dbId: target.dbId, uniqueId: target.id, ticketNo: target.ticketNo });
       
-      const result = await updateReservationStatus(apiId, newStatus);
+      // dbIdが有効な数値かチェック
+      const numericId = parseInt(apiId, 10);
+      if (isNaN(numericId) || numericId <= 0) {
+        console.error(`❌ [updateStatus] 無効なdbId: ${apiId}, ticketNo: ${target.ticketNo}`);
+        alert(`エラー: チケットIDが無効です。ページをリロードしてください。`);
+        return;
+      }
+      
+      console.log('🌐 [updateStatus] API呼び出し:', { 
+        apiId: numericId, 
+        dbId: target.dbId, 
+        uniqueId: target.id, 
+        ticketNo: target.ticketNo,
+        email: target.email
+      });
+      
+      const result = await updateReservationStatus(String(numericId), newStatus);
       
       console.log("📝 [updateStatus] APIレスポンス:", result);
       
