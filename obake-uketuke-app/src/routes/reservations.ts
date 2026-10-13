@@ -1,9 +1,33 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { pool } from "../db";
 import { requireAdmin } from "../middleware/auth";
 import { validateReservation, validateStatus } from "../middleware/validation";
+import {
+  decryptTicketToken,
+  encryptTicketToken,
+  generateTicketToken,
+  hashTicketToken,
+  isValidTokenFormat,
+  ticketUrl,
+} from "../ticketToken";
 
 const router = express.Router();
+const ticketLookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'too_many_requests' },
+});
+
+function setPrivateResponseHeaders(res: express.Response) {
+  res.set('Cache-Control', 'no-store, private, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('X-Content-Type-Options', 'nosniff');
+}
 
 // 呼び出し番号管理用（メモリ）
 let currentNumber = 1;
@@ -179,7 +203,8 @@ router.get("/", requireAdmin, async (_req, res) => {
             channel,
             user_agent AS "userAgent",
             TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
-            called_at AS "calledAt"
+            called_at AS "calledAt",
+            ticket_token_ciphertext AS "ticketTokenCiphertext"
         FROM reservations 
         WHERE event_date = $1::date
         ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
@@ -197,7 +222,8 @@ router.get("/", requireAdmin, async (_req, res) => {
           channel,
           user_agent AS "userAgent",
           TO_CHAR(created_at, 'YYYY/MM/DD HH24:MI') AS "createdAt",
-          called_at AS "calledAt"
+          called_at AS "calledAt",
+          ticket_token_ciphertext AS "ticketTokenCiphertext"
         FROM reservations 
         WHERE created_at::date = $1::date
         ORDER BY ${hasTicketNo ? 'ticket_no' : 'created_at'} ASC NULLS LAST
@@ -205,14 +231,20 @@ router.get("/", requireAdmin, async (_req, res) => {
     }
     
     console.log(`✅ [GET /api/reservations] DB取得成功: ${result.rows.length}件 (${hasEventDate ? 'event_date基準' : 'created_at基準'})`);
-    if (result.rows.length > 0) {
-      console.log(`📄 サンプルデータ:`, JSON.stringify(result.rows[0]));
-      console.log(`📄 ticketNo確認:`, result.rows.map((r: any) => r.ticketNo));
-    } else {
+    if (result.rows.length === 0) {
       console.log(`⚠️ [GET /api/reservations] 今日のデータが0件です`);
     }
-    
-    return res.json({ ok: true, data: result.rows });
+
+    const data = result.rows.map((row: any) => {
+      const { ticketTokenCiphertext, ...safeRow } = row;
+      if (!ticketTokenCiphertext) return safeRow;
+      try {
+        return { ...safeRow, ticketUrl: ticketUrl(decryptTicketToken(ticketTokenCiphertext)) };
+      } catch {
+        return safeRow;
+      }
+    });
+    return res.json({ ok: true, data });
   } catch (err) {
     console.error("❌ [GET /api/reservations] DBエラー:", err);
     return res.status(500).json({ ok: false, error: "db_error" });
@@ -227,7 +259,7 @@ router.post("/", validateReservation, async (req, res) => {
   // 日付変更チェック
   await checkAndResetIfNeeded();
   
-  console.log(`📥 [POST /api/reservations] email=${email}, count=${count}, age=${age}, channel=${channel}`);
+  console.log(`📥 [POST /api/reservations] count=${count}, age=${age}, channel=${channel}`);
   
   // リトライロジック（最大5回）
   const MAX_RETRIES = 5;
@@ -251,6 +283,14 @@ router.post("/", validateReservation, async (req, res) => {
       // event_dateが存在するか確認
       const hasEventDate = columns.includes('event_date');
       const hasTicketNo = columns.includes('ticket_no');
+      const hasTicketTokens = ['ticket_token_hash', 'ticket_token_ciphertext', 'ticket_token_expires_at']
+        .every(column => columns.includes(column));
+
+      if (!hasTicketTokens) {
+        throw new Error('ticket_token_schema_missing');
+      }
+
+      const accessToken = generateTicketToken();
       
       // 整理券番号の採番（JST基準で当日のMAX+1を取得）
       // 日本時間の今日を取得（UTC+9）
@@ -360,6 +400,19 @@ router.post("/", validateReservation, async (req, res) => {
         insertValues.push(userAgent);
         insertPlaceholders.push(`$${paramIndex++}`);
       }
+
+      insertColumns.push('ticket_token_hash');
+      insertValues.push(hashTicketToken(accessToken));
+      insertPlaceholders.push(`$${paramIndex++}`);
+
+      insertColumns.push('ticket_token_ciphertext');
+      insertValues.push(encryptTicketToken(accessToken));
+      insertPlaceholders.push(`$${paramIndex++}`);
+
+      insertColumns.push('ticket_token_expires_at');
+      const expiresAt = new Date(`${todayJST}T15:00:00.000Z`);
+      insertValues.push(expiresAt);
+      insertPlaceholders.push(`$${paramIndex++}`);
       
       // created_at
       if (columns.includes('created_at')) {
@@ -400,29 +453,26 @@ router.post("/", validateReservation, async (req, res) => {
       `;
       
       console.log(`🔨 [POST] INSERT SQL: ${insertSQL}`);
-      console.log(`📝 [POST] パラメータ値:`, paramValues);
-      
       const inserted = await client.query(insertSQL, paramValues);
       
       await client.query('COMMIT');
-      console.log(`✅ [POST] DB保存成功: #${ticketNo} - ${email} (${channel})`);
-      console.log(`📄 [POST] 保存結果:`, JSON.stringify(inserted.rows[0]));
+      console.log(`✅ [POST] DB保存成功: #${ticketNo} (${channel})`);
       
       // レスポンスを正規化（ticketNoを確実に含める）
       const insertedRow = inserted.rows[0];
       const responseData = {
         id: String(insertedRow.id || ''),
         ticketNo: insertedRow.ticketNo || insertedRow.ticket_no || ticketNo || 1,
-        email: insertedRow.email || email,
         count: Number(insertedRow.count || count),
         age: insertedRow.age || age,
         status: insertedRow.status || '未呼出',
         channel: insertedRow.channel || channel,
-        createdAt: insertedRow.createdAt || new Date().toISOString().replace('T', ' ').slice(0, 16)
+        createdAt: insertedRow.createdAt || new Date().toISOString().replace('T', ' ').slice(0, 16),
+        ticketUrl: ticketUrl(accessToken),
       };
       
       // ticketNoが確実に含まれていることを確認
-      console.log(`🎟️ [POST] レスポンスデータ:`, JSON.stringify(responseData));
+      console.log(`🎟️ [POST] レスポンス送信: #${ticketNo}`);
       
       client.release();
       return res.status(201).json({ ok: true, data: responseData });
@@ -478,6 +528,55 @@ router.post("/", validateReservation, async (req, res) => {
   });
 });
 
+// 利用者向け専用整理券取得API（URLトークンのみでアクセス）
+router.get("/ticket/:token", ticketLookupLimiter, async (req, res) => {
+  setPrivateResponseHeaders(res);
+  const { token } = req.params;
+
+  if (!isValidTokenFormat(token)) {
+    return res.status(404).json({ ok: false, error: 'ticket_not_found' });
+  }
+
+  try {
+    await checkAndResetIfNeeded();
+    const schemaCheck = await pool.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'reservations' AND column_name = 'event_date'
+    `);
+    const dateColumn = schemaCheck.rows.length > 0 ? 'event_date' : 'created_at::date';
+    const todayJST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const result = await pool.query(`
+      SELECT
+        ticket_no AS "ticketNo",
+        count,
+        COALESCE(status, '未呼出') AS status
+      FROM reservations
+      WHERE ticket_token_hash = $1
+        AND ${dateColumn} = $2::date
+        AND ticket_token_expires_at > NOW()
+      LIMIT 1
+    `, [hashTicketToken(token), todayJST]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'ticket_not_found' });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ticketNo: Number(result.rows[0].ticketNo),
+        count: Number(result.rows[0].count),
+        status: result.rows[0].status,
+        currentNumber,
+        systemPaused,
+      },
+    });
+  } catch (err) {
+    console.error('❌ [GET /ticket/:token] 整理券取得エラー');
+    return res.status(500).json({ ok: false, error: 'db_error' });
+  }
+});
+
 // 整理券ステータス更新API（管理者のみ）
 router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
   const { id } = req.params;
@@ -496,7 +595,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     
     // まず対象のレコードが存在するかチェック（idだけで検索、1件のみ）
     const checkResult = await pool.query(
-      `SELECT id, ticket_no, email FROM reservations WHERE id = $1::bigint LIMIT 1`,
+      `SELECT id, ticket_no FROM reservations WHERE id = $1::bigint LIMIT 1`,
       [numericId]
     );
     
@@ -506,7 +605,7 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
     }
     
     const targetRecord = checkResult.rows[0];
-    console.log(`📝 [PUT] 対象レコード発見: id=${targetRecord.id}, ticket_no=${targetRecord.ticket_no}, email=${targetRecord.email}`);
+    console.log(`📝 [PUT] 対象レコード発見: id=${targetRecord.id}, ticket_no=${targetRecord.ticket_no}`);
     
     // 必ず1件だけを更新（idで確実に特定）
     const result = await pool.query(
@@ -744,6 +843,13 @@ router.post("/reset-counter", requireAdmin, async (req, res) => {
     // メモリ内の呼び出し番号をリセット
     currentNumber = 1;
     systemPaused = false;
+
+    // 手動の日付リセットでも、それ以前に発行した専用URLを無効化する
+    await pool.query(`
+      UPDATE reservations
+      SET ticket_token_expires_at = NOW()
+      WHERE ticket_token_expires_at > NOW()
+    `);
     
     console.log("✅ [POST /reset-counter] カウンターをリセット: 1");
     

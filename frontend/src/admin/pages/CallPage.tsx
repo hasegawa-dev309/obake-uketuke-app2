@@ -16,6 +16,7 @@ type Ticket = {
   createdAt: string;
   ticketNo?: string;
   eventDate?: string; // event_dateフィールド（あれば）
+  ticketUrl?: string;
 };
 
 export default function CallPage(){
@@ -142,7 +143,8 @@ export default function CallPage(){
               status: item.status || '未呼出',
               createdAt: item.createdAt || item.created_at || '',
               ticketNo: ticketNo,
-              eventDate: eventDate
+              eventDate: eventDate,
+              ticketUrl: item.ticketUrl || undefined
             };
           });
           
@@ -180,22 +182,16 @@ export default function CallPage(){
     
     if (!ticket) {
       console.error(`❌ [sendEmailToCurrentNumber] エラー: 整理券番号 ${current} が見つかりません`);
-      console.error('📊 [sendEmailToCurrentNumber] 現在のtickets配列:', tickets.map(t => ({ id: t.id, ticketNo: t.ticketNo, email: t.email })));
+      console.error('📊 [sendEmailToCurrentNumber] 現在の整理券番号:', tickets.map(t => t.ticketNo));
       alert(`整理券番号 ${current} 番が見つかりません`);
       return;
     }
     
     if (!ticket.email) {
-      console.error('❌ [sendEmailToCurrentNumber] メールアドレスが登録されていません:', ticket);
+      console.error('❌ [sendEmailToCurrentNumber] メールアドレスが登録されていません');
       alert("メールアドレスが登録されていません");
       return;
     }
-    
-    console.debug('✅ [sendEmailToCurrentNumber] 対象チケット:', { 
-      id: ticket.id, 
-      ticket: ticket.ticketNo, 
-      email: ticket.email 
-    });
     
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const toEmail = ticket.email;
@@ -208,6 +204,7 @@ export default function CallPage(){
 
 待機場所：5号館1階5102教室(お化け屋敷受付)
 キャンセルされる場合は、このメールに返信せずそのままにしてください。
+${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
 
 それでは、皆さまの勇気をお待ちしております👻
 
@@ -243,11 +240,7 @@ export default function CallPage(){
       return;
     }
     
-    console.debug('📧 [sendEmailToUpcomingNumbers] メール送信対象:', upcomingTickets.map(t => ({
-      id: t.id,
-      ticketNo: t.ticketNo,
-      email: t.email
-    })));
+    console.debug('📧 [sendEmailToUpcomingNumbers] メール送信対象件数:', upcomingTickets.length);
     
     const fromEmail = "obakeyasiki.pla.haku@gmail.com";
     const subject = "お化け屋敷：まもなくお呼びします";
@@ -260,13 +253,6 @@ export default function CallPage(){
         return;
       }
       
-      console.debug('✅ [sendEmailToUpcomingNumbers] 送信:', { 
-        id: ticket.id, 
-        ticket: ticket.ticketNo, 
-        email: ticket.email,
-        index 
-      });
-      
       const ticketNumber = ticket.ticketNo || ticket.id;
       const body = `整理券番号 ${ticketNumber} 番のお客様へ
 
@@ -275,6 +261,7 @@ export default function CallPage(){
 
 待機場所：5号館1階5102教室(お化け屋敷受付)
 キャンセルされる場合は、このメールに返信せずそのままにしてください。
+${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
 
 それでは、皆さまの勇気をお待ちしております👻
 

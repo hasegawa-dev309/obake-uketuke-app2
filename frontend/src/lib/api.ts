@@ -83,7 +83,7 @@ export async function postReservation(payload: {
   }
   
   const data = await res.json();
-  console.log('✅ [postReservation] 成功:', data);
+  console.log('✅ [postReservation] 成功');
   return data;
 }
 
@@ -172,5 +172,4 @@ export async function clearAllData() {
   });
   return res.json();
 }
-
 

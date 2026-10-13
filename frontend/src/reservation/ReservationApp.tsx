@@ -18,6 +18,7 @@ export default function ReservationApp() {
   const [error, setError] = useState<string | null>(null);
   const [ticketNo, setTicketNo] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string>("");
+  const [ticketUrl, setTicketUrl] = useState<string>("");
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [currentNumber, setCurrentNumber] = useState<number>(0);
   const [currentTicketNumber, setCurrentTicketNumber] = useState<number>(0);
@@ -112,7 +113,7 @@ export default function ReservationApp() {
       const isTablet = /iPad|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
       const channel = isMobile && !isTablet ? 'mobile' : isTablet ? 'tablet' : 'web';
       
-      console.log(`📤 予約送信: email=${email}, channel=${channel}`);
+      console.log(`📤 予約送信: channel=${channel}`);
       
       // APIヘルパーを使用して送信
       const result = await postReservation({ email, count, age, channel });
@@ -128,6 +129,7 @@ export default function ReservationApp() {
       const ticketNumber = result.data.ticketNo || result.data.id;
       setTicketNo(ticketNumber);
       setCreatedAt(result.data.createdAt || "");
+      setTicketUrl(result.data.ticketUrl || "");
       
     } catch (err: any) {
       console.error("❌ 予約エラー:", err);
@@ -183,6 +185,16 @@ export default function ReservationApp() {
             <div className="font-bold mb-2 text-center">重要</div>
             <div className="text-sm text-center">この画面は受付で使用するため、ブラウザのタブは削除しないでください。また呼び出し番号はリアルタイムで反映されるためリロードは行わないでください。</div>
           </div>
+
+          {ticketUrl && (
+            <a
+              href={ticketUrl}
+              className="block w-full rounded-xl bg-violet-600 px-4 py-3 font-bold text-white hover:bg-violet-700"
+              rel="noreferrer"
+            >
+              専用整理券画面を開く
+            </a>
+          )}
 
         </div>
       </div>

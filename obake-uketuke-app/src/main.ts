@@ -18,6 +18,7 @@ const allowedOrigins = [
   'https://obake-uketuke-app2-iveo.vercel.app',
   'https://obake-uketuke-app2-iveo-git-main-hasegawa-dev309s-projects.vercel.app',
   /^https:\/\/.*\.vercel\.app$/,  // すべてのVercelプレビューURL
+  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:5174'] : []),
 ];
 
 app.use(cors({
