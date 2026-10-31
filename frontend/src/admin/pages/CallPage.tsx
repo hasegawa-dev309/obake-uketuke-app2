@@ -103,19 +103,6 @@ export default function CallPage(){
     };
   }, []);
 
-  // currentまたはpausedが変更されたらAPIに保存（認証付き）
-  useEffect(() => {
-    const saveCurrentNumber = async () => {
-      try {
-        await updateCurrentNumber(current, paused);
-      } catch (err) {
-        console.error("❌ 現在の番号保存エラー:", err);
-      }
-    };
-    
-    saveCurrentNumber();
-  }, [current, paused]);
-
   // 整理券データをAPIから取得（認証付き）
   useEffect(() => {
     const loadTickets = async () => {
@@ -385,14 +372,37 @@ ${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
               ? "bg-green-500 hover:bg-green-600 text-white" 
               : "bg-yellow-500 hover:bg-yellow-600 text-white"
           }`}
-          onClick={() => setPaused(p => !p)}
+          onClick={async () => {
+            const previousPaused = paused;
+            const newPaused = !previousPaused;
+
+            try {
+              await updateCurrentNumber(current, newPaused);
+              setPaused(newPaused);
+            } catch (err) {
+              console.error("❌ 一時停止状態更新エラー:", err);
+              setPaused(previousPaused);
+              alert("一時停止状態の更新に失敗しました");
+            }
+          }}
         >
           {paused ? "再開" : "一時停止"}
         </button>
         
         <button 
           className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-          onClick={() => setCurrent(1)}
+          onClick={async () => {
+            const previousCurrent = current;
+
+            try {
+              await updateCurrentNumber(1, paused);
+              setCurrent(1);
+            } catch (err) {
+              console.error("❌ 呼び出し番号リセットエラー:", err);
+              setCurrent(previousCurrent);
+              alert("呼び出し番号のリセットに失敗しました");
+            }
+          }}
         >
           リセット
         </button>
