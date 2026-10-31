@@ -149,6 +149,32 @@ export async function updateCurrentNumber(currentNumber: number, systemPaused: b
   return res.json();
 }
 
+// 呼び出し番号をサーバー側で相対更新
+export async function adjustCurrentNumber(delta: 1 | -1) {
+  const res = await authenticatedFetch('/reservations/current-number/adjust', {
+    method: 'POST',
+    body: JSON.stringify({ delta })
+  });
+  const result = await res.json();
+  if (!res.ok || !result.ok) {
+    throw new Error(result.error || '呼び出し番号の更新に失敗しました');
+  }
+  return result;
+}
+
+// 一時停止状態だけを更新し、呼び出し番号を上書きしない
+export async function updateSystemPaused(systemPaused: boolean) {
+  const res = await authenticatedFetch('/reservations/current-number', {
+    method: 'PUT',
+    body: JSON.stringify({ systemPaused })
+  });
+  const result = await res.json();
+  if (!res.ok || !result.ok) {
+    throw new Error(result.error || '一時停止状態の更新に失敗しました');
+  }
+  return result;
+}
+
 // 個別整理券削除（管理API）
 export async function deleteReservation(id: string) {
   const res = await authenticatedFetch(`/reservations/${id}`, {
@@ -172,4 +198,3 @@ export async function clearAllData() {
   });
   return res.json();
 }
-

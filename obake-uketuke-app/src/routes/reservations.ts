@@ -768,6 +768,20 @@ router.get("/status", async (_req, res) => {
   });
 });
 
+// 呼び出し番号を相対更新（連打・複数端末の絶対値上書きを防ぐ）
+router.post("/current-number/adjust", requireAdmin, (req, res) => {
+  const delta = Number(req.body.delta);
+
+  if (delta !== 1 && delta !== -1) {
+    return res.status(400).json({ ok: false, error: 'Invalid delta' });
+  }
+
+  currentNumber = Math.max(1, currentNumber + delta);
+  console.log(`🔢 [POST /current-number/adjust] delta=${delta}, 更新後=${currentNumber}`);
+
+  return res.json({ ok: true, data: { currentNumber, systemPaused } });
+});
+
 router.put("/current-number", requireAdmin, (req, res) => {
   const { currentNumber: newNumber, systemPaused: newPaused } = req.body;
   

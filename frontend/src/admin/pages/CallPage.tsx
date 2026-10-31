@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { ArrowClockwise, Envelope, EnvelopeOpen, Play, Pause } from "phosphor-react";
-import { fetchReservations, getCurrentNumber, updateCurrentNumber } from "../../lib/api";
+import { adjustCurrentNumber, fetchReservations, getCurrentNumber, updateCurrentNumber, updateSystemPaused } from "../../lib/api";
 import { API_CONFIG } from "../../config/api.config";
 
 // ポーリング間隔の定数
 const NORMAL_MS = 5000;  // 通常時は5秒
-const BURST_MS = 250;   // 操作直後の高速間隔
 
 type Ticket = { 
   id: string; 
@@ -23,10 +22,13 @@ export default function CallPage(){
   const [current, setCurrent] = useState<number>(1);
   const [paused, setPaused] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [pendingAdjustments, setPendingAdjustments] = useState(0);
   const holdRef = useRef(false); // 一時ホールドフラグ（操作直後の上書き防止）
   const pollStopRef = useRef(false); // ポーリング停止フラグ
   const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null); // ポーリングタイマー
   const currentPollIntervalRef = useRef<number>(NORMAL_MS); // 現在のポーリング間隔
+  const adjustmentQueueRef = useRef<Array<1 | -1>>([]);
+  const processingAdjustmentRef = useRef(false);
 
   const openMail = (to: string, subject: string, body: string, from: string) => {
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&authuser=${encodeURIComponent(from)}`;
@@ -155,6 +157,40 @@ export default function CallPage(){
 
   const handleReload = () => {
     window.location.reload();
+  };
+
+  const processAdjustmentQueue = useCallback(async () => {
+    if (processingAdjustmentRef.current) return;
+
+    processingAdjustmentRef.current = true;
+    holdRef.current = true;
+
+    try {
+      while (adjustmentQueueRef.current.length > 0) {
+        const delta = adjustmentQueueRef.current.shift()!;
+        const result = await adjustCurrentNumber(delta);
+        setCurrent(result.data.currentNumber);
+        setPaused(result.data.systemPaused);
+        setPendingAdjustments(adjustmentQueueRef.current.length);
+      }
+    } catch (err) {
+      console.error("❌ 呼び出し番号更新エラー:", err);
+      adjustmentQueueRef.current = [];
+      setPendingAdjustments(0);
+      alert("呼び出し番号の更新に失敗しました");
+    } finally {
+      processingAdjustmentRef.current = false;
+      holdRef.current = false;
+      const date = new Date().toISOString().split('T')[0];
+      await tick(date);
+      startPolling(NORMAL_MS);
+    }
+  }, []);
+
+  const queueAdjustment = (delta: 1 | -1) => {
+    adjustmentQueueRef.current.push(delta);
+    setPendingAdjustments(adjustmentQueueRef.current.length);
+    void processAdjustmentQueue();
   };
 
   // idで確実に検索（useCallbackでメモ化）
@@ -289,35 +325,7 @@ ${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
       <div className="flex justify-center items-center gap-8 mb-8">
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={async () => {
-            // 楽観更新
-            const newValue = Math.max(1, current - 1);
-            setCurrent(newValue);
-            holdRef.current = true;
-
-            // 即時tick
-            const date = new Date().toISOString().split('T')[0];
-            tick(date);
-
-            // バーストポーリング
-            startPolling(BURST_MS);
-            setTimeout(() => {
-              startPolling(NORMAL_MS);
-            }, 3000);
-
-            try {
-              await updateCurrentNumber(newValue, paused);
-              setTimeout(() => {
-                holdRef.current = false;
-                tick(date);
-              }, 800);
-            } catch (err: any) {
-              console.error("❌ 呼び出し番号更新エラー:", err);
-              holdRef.current = false;
-              setCurrent(current);
-              alert("呼び出し番号の更新に失敗しました");
-            }
-          }}
+          onClick={() => queueAdjustment(-1)}
         >
           ◀
         </button>
@@ -328,41 +336,17 @@ ${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
 
         <button 
           className="w-16 h-16 rounded-full border-2 border-gray-300 hover:border-violet-500 hover:bg-violet-50 flex items-center justify-center text-2xl transition-colors"
-          onClick={async () => {
-            // 楽観更新（即時反映、体感0秒）
-            const newValue = current + 1;
-            setCurrent(newValue);
-            holdRef.current = true;
-
-            // 即時tickで他端末も追従
-            const date = new Date().toISOString().split('T')[0];
-            tick(date);
-
-            // バーストポーリング：数秒だけ高速
-            startPolling(BURST_MS);
-            setTimeout(() => {
-              startPolling(NORMAL_MS);
-            }, 3000);
-
-            try {
-              await updateCurrentNumber(newValue, paused);
-              // 800msはサーバー値で上書きしない（古いレスが来ても跳ねる）
-              setTimeout(() => {
-                holdRef.current = false;
-                tick(date);
-              }, 800);
-            } catch (err: any) {
-              // 失敗時はロールバック
-              console.error("❌ 呼び出し番号更新エラー:", err);
-              holdRef.current = false;
-              setCurrent(current);
-              alert("呼び出し番号の更新に失敗しました");
-            }
-          }}
+          onClick={() => queueAdjustment(1)}
         >
           ▶
         </button>
       </div>
+
+      {pendingAdjustments > 0 && (
+        <p className="-mt-4 mb-6 text-center text-sm text-slate-500">
+          更新中（残り{pendingAdjustments}件）
+        </p>
+      )}
 
       {/* その他の操作 */}
       <div className="flex justify-center gap-4 flex-wrap">
@@ -372,13 +356,14 @@ ${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
               ? "bg-green-500 hover:bg-green-600 text-white" 
               : "bg-yellow-500 hover:bg-yellow-600 text-white"
           }`}
+          disabled={pendingAdjustments > 0}
           onClick={async () => {
             const previousPaused = paused;
             const newPaused = !previousPaused;
 
             try {
-              await updateCurrentNumber(current, newPaused);
-              setPaused(newPaused);
+              const result = await updateSystemPaused(newPaused);
+              setPaused(result.data.systemPaused);
             } catch (err) {
               console.error("❌ 一時停止状態更新エラー:", err);
               setPaused(previousPaused);
@@ -391,6 +376,7 @@ ${ticket.ticketUrl ? `\n整理券の確認：${ticket.ticketUrl}\n` : ''}
         
         <button 
           className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+          disabled={pendingAdjustments > 0}
           onClick={async () => {
             const previousCurrent = current;
 
