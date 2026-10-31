@@ -647,14 +647,19 @@ router.put("/:id/status", requireAdmin, validateStatus, async (req, res) => {
 // 整理券削除API（管理者のみ）
 router.delete("/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
+  const numericId = Number(id);
   
   console.log(`🗑️ [DELETE /:id] id=${id}`);
+
+  if (!Number.isSafeInteger(numericId) || numericId <= 0) {
+    return res.status(400).json({ ok: false, error: 'Invalid id format' });
+  }
   
   try {
     const result = await pool.query(
-      `DELETE FROM reservations WHERE id = $1::bigint OR ticket_no = $1::bigint 
+      `DELETE FROM reservations WHERE id = $1::bigint
        RETURNING id, ticket_no AS "ticketNo", email`,
-      [id]
+      [numericId]
     );
     
     if (result.rows.length === 0) {
@@ -662,7 +667,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Reservation not found' });
     }
     
-    console.log(`✅ [DELETE] 削除成功: #${result.rows[0].ticketNo}`);
+    console.log(`✅ [DELETE] 削除成功: id=${numericId}, #${result.rows[0].ticketNo}`);
     return res.json({ ok: true, message: 'Deleted successfully', data: result.rows[0] });
   } catch (err) {
     console.error("❌ [DELETE /:id] DBエラー:", err);

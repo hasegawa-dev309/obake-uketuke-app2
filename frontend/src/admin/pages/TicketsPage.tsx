@@ -325,8 +325,13 @@ export default function TicketsPage(){
     console.debug('🗑️ [handleDelete] 削除開始:', { id: target.id, dbId: target.dbId, ticket: target.ticketNo, email: target.email });
 
     try {
-      // APIで削除（dbIdを使用、なければidをそのまま使用）
-      const apiId = target.dbId || target.id;
+      // 削除はデータベースの実IDだけで行う
+      const apiId = target.dbId;
+      if (!/^\d+$/.test(apiId) || Number(apiId) <= 0) {
+        console.error('❌ [handleDelete] 無効なdbId:', { dbId: target.dbId, uniqueId: target.id });
+        alert("削除対象のデータベースIDを確認できません。ページを再読み込みしてください。");
+        return;
+      }
       console.log('🌐 [handleDelete] API呼び出し:', { apiId, dbId: target.dbId, uniqueId: target.id, ticketNo: target.ticketNo });
       
       const result = await deleteReservation(apiId);
